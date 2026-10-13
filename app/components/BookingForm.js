@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FORMSPREE_ENDPOINT, CONTACT_EMAIL } from "../config";
 
 const UK_TZ = "Europe/London";
@@ -53,8 +53,8 @@ const EMPTY = {
   examBoard: "",
   subject: "",
   helpMost: "",
-  date: null, // a UK calendar date, like 2026-10-15
-  time: "", // a UK slot key, like 16:30
+  date: null, // the day picked, in the visitor's own time zone, like 2026-10-15
+  slotIso: "", // the exact moment picked (UTC), like 2026-10-15T15:00:00.000Z
   timeZone: "",
   parentName: "",
   email: "",
@@ -149,18 +149,37 @@ function dayKeyIn(date, tz) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
-function slotInfo(iso, slot, tz) {
-  const [y, mo, d] = iso.split("-").map(Number);
-  const utc = zonedToUtc(y, mo, d, slot[0], slot[1], UK_TZ);
+function fmtIn(utc, tz, opts) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts }).format(utc);
+}
+
+// Every bookable moment: 4:00 to 7:30 pm UK time on the next `count` UK weekdays.
+function buildSlotIsos(count) {
+  const out = [];
+  for (const d of upcomingUkWeekdays(count)) {
+    const [y, m, day] = d.iso.split("-").map(Number);
+    for (const [h, min] of UK_SLOTS) out.push(zonedToUtc(y, m, day, h, min, UK_TZ).toISOString());
+  }
+  return out;
+}
+
+// One slot described in the visitor's time zone, with its UK equivalent.
+function describeSlot(iso, tz) {
+  const utc = new Date(iso);
   const localKey = dayKeyIn(utc, tz);
-  const [ly, lm, ld] = localKey.split("-").map(Number);
-  const dayDiff = Math.round((Date.UTC(ly, lm - 1, ld) - Date.UTC(y, mo - 1, d)) / 86400000);
   return {
-    key: `${String(slot[0]).padStart(2, "0")}:${String(slot[1]).padStart(2, "0")}`,
-    ukTime: timeIn(utc, UK_TZ),
+    iso,
+    localKey,
+    sameDay: localKey === dayKeyIn(utc, UK_TZ),
     localTime: timeIn(utc, tz),
-    localDayLabel: new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short" }).format(utc),
-    dayDiff,
+    ukTime: timeIn(utc, UK_TZ),
+    localWeekday: fmtIn(utc, tz, { weekday: "short" }),
+    localDayNum: fmtIn(utc, tz, { day: "numeric" }),
+    localMonth: fmtIn(utc, tz, { month: "short" }),
+    localDayShort: fmtIn(utc, tz, { weekday: "short", day: "numeric", month: "short" }),
+    localDayLong: fmtIn(utc, tz, { weekday: "long", day: "numeric", month: "long" }),
+    ukDayShort: fmtIn(utc, UK_TZ, { weekday: "short", day: "numeric", month: "short" }),
+    ukDayLong: fmtIn(utc, UK_TZ, { weekday: "long", day: "numeric", month: "long" }),
   };
 }
 
@@ -234,6 +253,7 @@ function Pill({ selected, onClick, children }) {
 }
 
 function SlotButton({ slot, selected, showUk, onClick }) {
+  const sub = selected ? "text-white/85" : "text-slate-600";
   return (
     <button
       type="button"
@@ -244,14 +264,8 @@ function SlotButton({ slot, selected, showUk, onClick }) {
       }`}
     >
       <span className="text-sm font-bold">{slot.localTime}</span>
-      {showUk && (
-        <span className={`text-xs ${selected ? "text-white/85" : "text-slate-600"}`}>{slot.ukTime} UK</span>
-      )}
-      {showUk && slot.dayDiff !== 0 && (
-        <span className={`text-xs font-semibold ${selected ? "text-white" : "text-brand"}`}>
-          {slot.dayDiff > 0 ? "next day" : "day before"}
-        </span>
-      )}
+      {showUk && <span className={`text-xs ${sub}`}>{slot.ukTime} UK</span>}
+      {showUk && !slot.sameDay && <span className={`text-xs ${sub}`}>{slot.ukDayShort}</span>}
     </button>
   );
 }
@@ -266,7 +280,7 @@ export default function BookingForm() {
   const [done, setDone] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
-  const [days, setDays] = useState([]);
+  const [allSlots, setAllSlots] = useState([]);
   const [tzList, setTzList] = useState([]);
   const [sending, setSending] = useState(false);
   const [serverError, setServerError] = useState("");
@@ -275,7 +289,7 @@ export default function BookingForm() {
 
   // Dates and time zones come from the browser, so they are set after the page loads.
   useEffect(() => {
-    setDays(upcomingUkWeekdays(10));
+    setAllSlots(buildSlotIsos(12));
     let detected = UK_TZ;
     try {
       detected = Intl.DateTimeFormat().resolvedOptions().timeZone || UK_TZ;
@@ -310,9 +324,20 @@ export default function BookingForm() {
   const tz = form.timeZone || UK_TZ;
   const isUk = tz === UK_TZ;
   const showExamBoard = form.yearGroup === "Year 10" || form.yearGroup === "Year 11";
-  const chosenDay = days.find((d) => d.iso === form.date);
-  const slots = form.date ? UK_SLOTS.map((s) => slotInfo(form.date, s, tz)) : UK_SLOTS.map((s) => slotInfo(days[0]?.iso || "2026-01-05", s, tz));
-  const chosen = form.date && form.time ? slots.find((s) => s.key === form.time) : null;
+  const described = useMemo(() => allSlots.map((iso) => describeSlot(iso, tz)), [allSlots, tz]);
+  const stripDays = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const sl of described) {
+      if (!seen.has(sl.localKey)) {
+        seen.add(sl.localKey);
+        out.push(sl);
+      }
+    }
+    return out.slice(0, 10);
+  }, [described]);
+  const daySlots = form.date ? described.filter((sl) => sl.localKey === form.date) : [];
+  const chosen = form.slotIso ? described.find((sl) => sl.iso === form.slotIso) : null;
   const emailFix = suggestEmail(form.email);
 
   function validate(forStep) {
@@ -324,7 +349,7 @@ export default function BookingForm() {
     }
     if (forStep === 2) {
       if (!form.date) e.date = "Choose a day.";
-      if (!form.time) e.time = "Choose a time.";
+      if (!form.slotIso) e.time = "Choose a time.";
     }
     if (forStep === 3) {
       if (!form.parentName.trim()) e.parentName = "Enter your full name.";
@@ -341,6 +366,26 @@ export default function BookingForm() {
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  function changeTimeZone(z) {
+    // Keep the chosen moment, but show it on its date in the new time zone.
+    setForm((f) => ({ ...f, timeZone: z, date: f.slotIso ? dayKeyIn(new Date(f.slotIso), z) : null }));
+    setErrors((e) => ({ ...e, date: undefined, time: undefined }));
+  }
+
+  function pickDay(key) {
+    setForm((f) => ({
+      ...f,
+      date: key,
+      slotIso: f.slotIso && dayKeyIn(new Date(f.slotIso), tz) === key ? f.slotIso : "",
+    }));
+    setErrors((e) => ({ ...e, date: undefined }));
+  }
+
+  function pickSlot(iso) {
+    setForm((f) => ({ ...f, slotIso: iso }));
+    setErrors((e) => ({ ...e, time: undefined }));
   }
 
   function next() {
@@ -365,7 +410,7 @@ export default function BookingForm() {
 
     const phone = parsePhone(form.countryCode, form.mobile);
     const payload = {
-      _subject: `Snapshot booking request: ${form.childName.trim()} (${form.yearGroup}), ${chosenDay?.long}, ${chosen?.ukTime} UK time`,
+      _subject: `Snapshot booking request: ${form.childName.trim()} (${form.yearGroup}), ${chosen?.ukDayLong}, ${chosen?.ukTime} UK time`,
       name: form.parentName.trim(),
       email: form.email.trim(),
       mobile: phone.e164 || "",
@@ -374,9 +419,9 @@ export default function BookingForm() {
       exam_board: form.examBoard.trim(),
       focus_subject: form.subject,
       helps_most: form.helpMost,
-      requested_day_uk: chosenDay?.long,
+      requested_day_uk: chosen?.ukDayLong,
       requested_time_uk: chosen?.ukTime,
-      requested_time_for_parent: `${chosen?.localDayLabel}, ${chosen?.localTime}`,
+      requested_time_for_parent: `${chosen?.localDayShort}, ${chosen?.localTime}`,
       parent_time_zone: tz,
       reply_on_whatsapp: form.whatsapp ? "Yes" : "No",
       guardian_confirmed: form.guardian ? "Yes" : "No",
@@ -421,8 +466,8 @@ export default function BookingForm() {
     const rows = [
       ["Child", `${form.childName.trim()}, ${form.yearGroup}`],
       ["Subject", form.subject],
-      ["UK time", `${chosenDay?.long}, ${chosen?.ukTime}`],
-      ...(isUk ? [] : [["Your time", `${chosen?.localDayLabel}, ${chosen?.localTime} (${tzLabel(tz)})`]]),
+      ["UK time", `${chosen?.ukDayLong}, ${chosen?.ukTime}`],
+      ...(isUk ? [] : [["Your time", `${chosen?.localDayLong}, ${chosen?.localTime} (${tzLabel(tz)})`]]),
       ["Length", "30 minutes"],
     ];
     return (
@@ -571,7 +616,7 @@ export default function BookingForm() {
           <p className="mt-1 text-sm text-slate-600">
             {isUk
               ? "All times are UK time."
-              : "Times are shown in your time zone. Sessions run from 4:00 to 7:30 pm UK time."}
+              : "Dates and times are shown in your time zone. Sessions run from 4:00 to 7:30 pm UK time."}
           </p>
 
           <div className="mt-4">
@@ -580,7 +625,7 @@ export default function BookingForm() {
               <select
                 id="timeZone"
                 value={form.timeZone}
-                onChange={(e) => set("timeZone", e.target.value)}
+                onChange={(e) => changeTimeZone(e.target.value)}
                 className={`${inputBase} border-line`}
               >
                 {tzList.map((z) => (
@@ -593,26 +638,26 @@ export default function BookingForm() {
           </div>
 
           <fieldset className="mt-5">
-            <legend className="mb-2 text-sm font-semibold">Day{isUk ? "" : " (UK date)"}</legend>
-            {days.length === 0 ? (
+            <legend className="mb-2 text-sm font-semibold">Day</legend>
+            {stripDays.length === 0 ? (
               <div className="h-[132px] rounded-2xl bg-mist" />
             ) : (
               <div className="grid grid-cols-5 gap-2">
-                {days.map((d) => {
-                  const on = form.date === d.iso;
+                {stripDays.map((d) => {
+                  const on = form.date === d.localKey;
                   return (
                     <button
-                      key={d.iso}
+                      key={d.localKey}
                       type="button"
                       aria-pressed={on}
-                      onClick={() => set("date", d.iso)}
+                      onClick={() => pickDay(d.localKey)}
                       className={`flex flex-col items-center rounded-2xl border py-2.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
                         on ? "border-brand bg-brand text-white" : "border-line bg-white hover:border-brand"
                       }`}
                     >
-                      <span className="text-xs font-medium">{d.weekday}</span>
-                      <span className="text-lg font-extrabold leading-tight">{d.day}</span>
-                      <span className="text-xs">{d.month}</span>
+                      <span className="text-xs font-medium">{d.localWeekday}</span>
+                      <span className="text-lg font-extrabold leading-tight">{d.localDayNum}</span>
+                      <span className="text-xs">{d.localMonth}</span>
                     </button>
                   );
                 })}
@@ -623,11 +668,15 @@ export default function BookingForm() {
 
           <fieldset className="mt-5">
             <legend className="mb-2 text-sm font-semibold">Time</legend>
-            <div className="grid grid-cols-3 gap-2">
-              {slots.map((s) => (
-                <SlotButton key={s.key} slot={s} showUk={!isUk} selected={form.time === s.key} onClick={() => set("time", s.key)} />
-              ))}
-            </div>
+            {form.date ? (
+              <div className="grid grid-cols-3 gap-2">
+                {daySlots.map((sl) => (
+                  <SlotButton key={sl.iso} slot={sl} showUk={!isUk} selected={form.slotIso === sl.iso} onClick={() => pickSlot(sl.iso)} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">Choose a day to see the times.</p>
+            )}
             <ErrorText>{errors.time}</ErrorText>
           </fieldset>
 
