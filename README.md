@@ -16,6 +16,11 @@ submits to Formspree, which emails each booking to the site owner.
 - Formspree emails the owner each submission. Because the parent's email is sent
   as the `email` field, the owner can hit Reply to answer them directly.
 - The first time you submit, Formspree asks you to confirm your own email address.
-- Time slots (4:00 pm to 7:30 pm) and the next 10 weekdays are demo data. Edit
-  `TIMES` in `app/components/BookingForm.js`.
+- Sessions run on UK time (4:00 to 7:30 pm, next 10 weekdays). Visitors see each slot
+  converted to their own time zone, and can change the time zone in the form. Edit
+  `UK_SLOTS` in `app/components/BookingForm.js` to change the hours.
+- The mobile field accepts numbers from any country: pick a country code, or type the
+  full number starting with +. The UK (+44) is the default unless the visitor's time
+  zone points elsewhere.
+- Formspree emails show the UK time, the parent's local time and their time zone.
 - Brand colours live in `tailwind.config.js`.

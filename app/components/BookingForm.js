@@ -3,10 +3,39 @@
 import { useEffect, useRef, useState } from "react";
 import { FORMSPREE_ENDPOINT, CONTACT_EMAIL } from "../config";
 
+const UK_TZ = "Europe/London";
+
 const YEAR_GROUPS = Array.from({ length: 13 }, (_, i) => `Year ${i + 1}`);
 const SUBJECTS = ["Maths", "English", "Science", "Other", "Not sure"];
 const HELP = ["Building confidence", "Catching up", "Exam preparation"];
-const TIMES = ["4:00 pm", "4:30 pm", "5:00 pm", "5:30 pm", "6:00 pm", "6:30 pm", "7:00 pm", "7:30 pm"];
+
+// Sessions run on UK time: 4:00 pm to 7:30 pm. Each entry is [hour, minute] in 24-hour UK time.
+const UK_SLOTS = [[16, 0], [16, 30], [17, 0], [17, 30], [18, 0], [18, 30], [19, 0], [19, 30]];
+
+// [short label, dial code]. The UK is first and is the default.
+const COUNTRY_CODES = [
+  ["UK", "+44"], ["IE", "+353"], ["US/CA", "+1"], ["NG", "+234"], ["GH", "+233"], ["KE", "+254"],
+  ["ZA", "+27"], ["EG", "+20"], ["UG", "+256"], ["TZ", "+255"], ["ZM", "+260"], ["ZW", "+263"],
+  ["CM", "+237"], ["AE", "+971"], ["SA", "+966"], ["QA", "+974"], ["IN", "+91"], ["PK", "+92"],
+  ["BD", "+880"], ["LK", "+94"], ["SG", "+65"], ["MY", "+60"], ["HK", "+852"], ["CN", "+86"],
+  ["JP", "+81"], ["KR", "+82"], ["PH", "+63"], ["AU", "+61"], ["NZ", "+64"], ["FR", "+33"],
+  ["DE", "+49"], ["ES", "+34"], ["IT", "+39"], ["NL", "+31"], ["BE", "+32"], ["PT", "+351"],
+  ["PL", "+48"], ["SE", "+46"], ["NO", "+47"], ["CH", "+41"], ["TR", "+90"], ["BR", "+55"],
+  ["MX", "+52"], ["JM", "+1876"], ["TT", "+1868"],
+];
+
+// Used to pre-select a sensible country code from the visitor's time zone.
+const TZ_DIAL = {
+  "Europe/London": "+44", "Europe/Dublin": "+353", "Africa/Lagos": "+234", "Africa/Accra": "+233",
+  "Africa/Nairobi": "+254", "Africa/Johannesburg": "+27", "Africa/Cairo": "+20", "Asia/Dubai": "+971",
+  "Asia/Riyadh": "+966", "Asia/Kolkata": "+91", "Asia/Calcutta": "+91", "Asia/Karachi": "+92",
+  "Asia/Dhaka": "+880", "Asia/Singapore": "+65", "Asia/Kuala_Lumpur": "+60", "Asia/Hong_Kong": "+852",
+  "Asia/Shanghai": "+86", "Asia/Tokyo": "+81", "Asia/Seoul": "+82", "Asia/Manila": "+63",
+  "Australia/Sydney": "+61", "Australia/Melbourne": "+61", "Pacific/Auckland": "+64",
+  "America/New_York": "+1", "America/Chicago": "+1", "America/Denver": "+1", "America/Los_Angeles": "+1",
+  "America/Toronto": "+1", "Europe/Paris": "+33", "Europe/Berlin": "+49", "Europe/Madrid": "+34",
+  "Europe/Rome": "+39", "Europe/Amsterdam": "+31",
+};
 
 const EMAIL_TYPOS = {
   "gmial.com": "gmail.com",
@@ -24,10 +53,12 @@ const EMPTY = {
   examBoard: "",
   subject: "",
   helpMost: "",
-  date: null,
-  time: "",
+  date: null, // a UK calendar date, like 2026-10-15
+  time: "", // a UK slot key, like 16:30
+  timeZone: "",
   parentName: "",
   email: "",
+  countryCode: "+44",
   mobile: "",
   whatsapp: false,
   guardian: false,
@@ -47,32 +78,133 @@ function suggestEmail(v) {
   return fix ? `${local}@${fix}` : null;
 }
 
-function ukMobileDigits(v) {
-  // "07123 456789", "+44 7123 456789" and "7123456789" all become 7123456789
-  let d = v.replace(/\D/g, "");
-  if (d.startsWith("44")) d = d.slice(2);
-  if (d.startsWith("0")) d = d.slice(1);
-  return d;
+// Accepts a number from any country, either with a chosen country code or typed in full with a +.
+function parsePhone(code, raw) {
+  const text = raw.trim();
+  if (!text) return { empty: true };
+  const international = text.startsWith("+") || text.startsWith("00");
+  let digits = text.replace(/\D/g, "");
+  if (text.startsWith("00")) digits = digits.slice(2);
+
+  if (international) {
+    if (digits.startsWith("44")) {
+      const nat = digits.slice(2).replace(/^0/, "");
+      return nat.length === 10 ? { e164: `+44${nat}` } : { error: "UK mobile numbers have 10 digits after +44." };
+    }
+    return digits.length >= 8 && digits.length <= 15
+      ? { e164: `+${digits}` }
+      : { error: "Enter the full number with its country code, like +234 801 234 5678." };
+  }
+
+  if (!code) return { error: "Choose your country code, or start the number with +." };
+  const nat = digits.replace(/^0/, "");
+  if (code === "+44") {
+    return nat.length === 10 ? { e164: `+44${nat}` } : { error: "UK mobile numbers have 10 digits, like 7123 456789." };
+  }
+  if (nat.length < 6 || code.length - 1 + nat.length > 15) {
+    return { error: "That number doesn't look right for the country code you chose." };
+  }
+  return { e164: `${code}${nat}` };
 }
 
-function upcomingWeekdays(count) {
+/* ---------- time zones ---------- */
+
+function tzOffsetMinutes(date, tz) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(date)
+      .map((p) => [p.type, p.value])
+  );
+  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+  return (asUtc - date.getTime()) / 60000;
+}
+
+// The exact moment when the clock in `tz` reads y-m-d h:min.
+function zonedToUtc(y, m, d, h, min, tz) {
+  const guess = Date.UTC(y, m - 1, d, h, min);
+  const off1 = tzOffsetMinutes(new Date(guess), tz);
+  let utc = guess - off1 * 60000;
+  const off2 = tzOffsetMinutes(new Date(utc), tz);
+  if (off2 !== off1) utc = guess - off2 * 60000;
+  return new Date(utc);
+}
+
+function timeIn(date, tz) {
+  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true })
+    .format(date)
+    .replace(/\u202f/g, " ")
+    .toLowerCase();
+}
+
+function dayKeyIn(date, tz) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+function slotInfo(iso, slot, tz) {
+  const [y, mo, d] = iso.split("-").map(Number);
+  const utc = zonedToUtc(y, mo, d, slot[0], slot[1], UK_TZ);
+  const localKey = dayKeyIn(utc, tz);
+  const [ly, lm, ld] = localKey.split("-").map(Number);
+  const dayDiff = Math.round((Date.UTC(ly, lm - 1, ld) - Date.UTC(y, mo - 1, d)) / 86400000);
+  return {
+    key: `${String(slot[0]).padStart(2, "0")}:${String(slot[1]).padStart(2, "0")}`,
+    ukTime: timeIn(utc, UK_TZ),
+    localTime: timeIn(utc, tz),
+    localDayLabel: new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short" }).format(utc),
+    dayDiff,
+  };
+}
+
+function tzLabel(z) {
+  return z === UK_TZ ? "United Kingdom (London)" : z.replace(/_/g, " ");
+}
+
+function getTimeZones(detected) {
+  let list = [];
+  try {
+    list = Intl.supportedValuesOf("timeZone");
+  } catch {
+    list = [];
+  }
+  if (!list.length) {
+    list = ["Europe/Dublin", "Africa/Lagos", "Africa/Johannesburg", "America/New_York", "Asia/Dubai", "Asia/Kolkata", "Australia/Sydney"];
+  }
+  const set = new Set(list);
+  set.delete(UK_TZ);
+  if (detected && detected !== UK_TZ) set.add(detected);
+  return [UK_TZ, ...[...set].sort()];
+}
+
+// The next `count` weekdays, counted from tomorrow in the UK.
+function upcomingUkWeekdays(count) {
+  const [y, m, d] = dayKeyIn(new Date(), UK_TZ).split("-").map(Number);
+  const cur = new Date(Date.UTC(y, m - 1, d, 12));
   const out = [];
-  const d = new Date();
-  d.setHours(12, 0, 0, 0);
   while (out.length < count) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
+    cur.setUTCDate(cur.getUTCDate() + 1);
+    const dow = cur.getUTCDay();
     if (dow === 0 || dow === 6) continue;
     out.push({
-      iso: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
-      weekday: d.toLocaleDateString("en-GB", { weekday: "short" }),
-      day: d.getDate(),
-      month: d.toLocaleDateString("en-GB", { month: "short" }),
-      long: d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }),
+      iso: cur.toISOString().slice(0, 10),
+      weekday: cur.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }),
+      day: cur.getUTCDate(),
+      month: cur.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }),
+      long: cur.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }),
     });
   }
   return out;
 }
+
+/* ---------- small UI pieces ---------- */
 
 function ErrorText({ id, children }) {
   if (!children) return null;
@@ -101,8 +233,33 @@ function Pill({ selected, onClick, children }) {
   );
 }
 
+function SlotButton({ slot, selected, showUk, onClick }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`flex min-h-14 flex-col items-center justify-center rounded-2xl border px-1 py-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+        selected ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:border-brand"
+      }`}
+    >
+      <span className="text-sm font-bold">{slot.localTime}</span>
+      {showUk && (
+        <span className={`text-xs ${selected ? "text-white/85" : "text-slate-600"}`}>{slot.ukTime} UK</span>
+      )}
+      {showUk && slot.dayDiff !== 0 && (
+        <span className={`text-xs font-semibold ${selected ? "text-white" : "text-brand"}`}>
+          {slot.dayDiff > 0 ? "next day" : "day before"}
+        </span>
+      )}
+    </button>
+  );
+}
+
 const inputBase =
   "w-full rounded-xl border bg-white px-4 py-3 text-base text-ink placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand";
+
+/* ---------- the form ---------- */
 
 export default function BookingForm() {
   const [step, setStep] = useState(1);
@@ -110,14 +267,28 @@ export default function BookingForm() {
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [days, setDays] = useState([]);
+  const [tzList, setTzList] = useState([]);
   const [sending, setSending] = useState(false);
   const [serverError, setServerError] = useState("");
   const cardRef = useRef(null);
   const firstRender = useRef(true);
 
-  // Dates are built in the browser so they are always "from tomorrow".
+  // Dates and time zones come from the browser, so they are set after the page loads.
   useEffect(() => {
-    setDays(upcomingWeekdays(10));
+    setDays(upcomingUkWeekdays(10));
+    let detected = UK_TZ;
+    try {
+      detected = Intl.DateTimeFormat().resolvedOptions().timeZone || UK_TZ;
+    } catch {
+      detected = UK_TZ;
+    }
+    setTzList(getTimeZones(detected));
+    const dial = TZ_DIAL[detected];
+    setForm((f) => ({
+      ...f,
+      timeZone: detected,
+      countryCode: dial && COUNTRY_CODES.some((c) => c[1] === dial) ? dial : f.countryCode,
+    }));
   }, []);
 
   // On phones, bring the card back into view when the step changes.
@@ -136,8 +307,12 @@ export default function BookingForm() {
     if (errors[field]) setErrors((e) => ({ ...e, [field]: undefined }));
   };
 
+  const tz = form.timeZone || UK_TZ;
+  const isUk = tz === UK_TZ;
   const showExamBoard = form.yearGroup === "Year 10" || form.yearGroup === "Year 11";
   const chosenDay = days.find((d) => d.iso === form.date);
+  const slots = form.date ? UK_SLOTS.map((s) => slotInfo(form.date, s, tz)) : UK_SLOTS.map((s) => slotInfo(days[0]?.iso || "2026-01-05", s, tz));
+  const chosen = form.date && form.time ? slots.find((s) => s.key === form.time) : null;
   const emailFix = suggestEmail(form.email);
 
   function validate(forStep) {
@@ -155,9 +330,12 @@ export default function BookingForm() {
       if (!form.parentName.trim()) e.parentName = "Enter your full name.";
       if (!form.email.trim()) e.email = "Enter your email address.";
       else if (!emailOk(form.email)) e.email = "That email doesn't look right.";
-      const digits = ukMobileDigits(form.mobile);
-      if (form.whatsapp && !form.mobile.trim()) e.mobile = "Add your mobile number so we can use WhatsApp.";
-      else if (form.mobile.trim() && !/^7\d{9}$/.test(digits)) e.mobile = "Enter a UK mobile number, like 7123 456789.";
+      const phone = parsePhone(form.countryCode, form.mobile);
+      if (phone.empty) {
+        if (form.whatsapp) e.mobile = "Add your mobile number so we can use WhatsApp.";
+      } else if (phone.error) {
+        e.mobile = phone.error;
+      }
       if (!form.guardian) e.guardian = "You need to confirm this to book.";
       if (!form.privacy) e.privacy = "You need to confirm this to book.";
     }
@@ -185,19 +363,21 @@ export default function BookingForm() {
       return;
     }
 
-    const mobile = form.mobile.trim() ? `+44 ${ukMobileDigits(form.mobile)}` : "";
+    const phone = parsePhone(form.countryCode, form.mobile);
     const payload = {
-      _subject: `Snapshot booking request: ${form.childName.trim()} (${form.yearGroup}), ${chosenDay?.long}, ${form.time} UK time`,
+      _subject: `Snapshot booking request: ${form.childName.trim()} (${form.yearGroup}), ${chosenDay?.long}, ${chosen?.ukTime} UK time`,
       name: form.parentName.trim(),
       email: form.email.trim(),
-      mobile,
+      mobile: phone.e164 || "",
       child_first_name: form.childName.trim(),
       year_group: form.yearGroup,
       exam_board: form.examBoard.trim(),
       focus_subject: form.subject,
       helps_most: form.helpMost,
-      requested_day: chosenDay?.long,
-      requested_time_uk: form.time,
+      requested_day_uk: chosenDay?.long,
+      requested_time_uk: chosen?.ukTime,
+      requested_time_for_parent: `${chosen?.localDayLabel}, ${chosen?.localTime}`,
+      parent_time_zone: tz,
       reply_on_whatsapp: form.whatsapp ? "Yes" : "No",
       guardian_confirmed: form.guardian ? "Yes" : "No",
       privacy_confirmed: form.privacy ? "Yes" : "No",
@@ -227,7 +407,7 @@ export default function BookingForm() {
   }
 
   function startAgain() {
-    setForm(EMPTY);
+    setForm({ ...EMPTY, timeZone: form.timeZone, countryCode: form.countryCode });
     setErrors({});
     setServerError("");
     setStep(1);
@@ -235,9 +415,16 @@ export default function BookingForm() {
   }
 
   const cardClass =
-    "rounded-3xl border border-line bg-white p-6 shadow-[0_18px_50px_-20px_rgba(11,63,166,0.35)] sm:p-8";
+    "rounded-3xl border border-line bg-white p-6 shadow-[0_18px_50px_-20px_rgba(1,64,170,0.35)] sm:p-8";
 
   if (done) {
+    const rows = [
+      ["Child", `${form.childName.trim()}, ${form.yearGroup}`],
+      ["Subject", form.subject],
+      ["UK time", `${chosenDay?.long}, ${chosen?.ukTime}`],
+      ...(isUk ? [] : [["Your time", `${chosen?.localDayLabel}, ${chosen?.localTime} (${tzLabel(tz)})`]]),
+      ["Length", "30 minutes"],
+    ];
     return (
       <div id="book" ref={cardRef} className={`${cardClass} scroll-mt-24`}>
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl text-ok" aria-hidden="true">
@@ -251,14 +438,9 @@ export default function BookingForm() {
         </p>
 
         <dl className="mt-6 divide-y divide-line rounded-2xl bg-mist px-5 text-sm">
-          {[
-            ["Child", `${form.childName.trim()}, ${form.yearGroup}`],
-            ["Subject", form.subject],
-            ["Requested time", `${chosenDay?.long}, ${form.time} UK time`],
-            ["Length", "30 minutes"],
-          ].map(([k, v]) => (
+          {rows.map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 py-3">
-              <dt className="text-slate-600">{k}</dt>
+              <dt className="shrink-0 text-slate-600">{k}</dt>
               <dd className="text-right font-semibold">{v}</dd>
             </div>
           ))}
@@ -386,10 +568,32 @@ export default function BookingForm() {
       {step === 2 && (
         <div>
           <h2 className="mt-1 text-2xl font-extrabold">Pick a time that suits you</h2>
-          <p className="mt-1 text-sm text-slate-600">All times are shown in UK time.</p>
+          <p className="mt-1 text-sm text-slate-600">
+            {isUk
+              ? "All times are UK time."
+              : "Times are shown in your time zone. Sessions run from 4:00 to 7:30 pm UK time."}
+          </p>
+
+          <div className="mt-4">
+            <label htmlFor="timeZone" className="mb-1.5 block text-sm font-semibold">Your time zone</label>
+            {tzList.length ? (
+              <select
+                id="timeZone"
+                value={form.timeZone}
+                onChange={(e) => set("timeZone", e.target.value)}
+                className={`${inputBase} border-line`}
+              >
+                {tzList.map((z) => (
+                  <option key={z} value={z}>{tzLabel(z)}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="h-[50px] rounded-xl bg-mist" />
+            )}
+          </div>
 
           <fieldset className="mt-5">
-            <legend className="mb-2 text-sm font-semibold">Day</legend>
+            <legend className="mb-2 text-sm font-semibold">Day{isUk ? "" : " (UK date)"}</legend>
             {days.length === 0 ? (
               <div className="h-[132px] rounded-2xl bg-mist" />
             ) : (
@@ -420,8 +624,8 @@ export default function BookingForm() {
           <fieldset className="mt-5">
             <legend className="mb-2 text-sm font-semibold">Time</legend>
             <div className="grid grid-cols-3 gap-2">
-              {TIMES.map((t) => (
-                <Pill key={t} selected={form.time === t} onClick={() => set("time", t)}>{t}</Pill>
+              {slots.map((s) => (
+                <SlotButton key={s.key} slot={s} showUk={!isUk} selected={form.time === s.key} onClick={() => set("time", s.key)} />
               ))}
             </div>
             <ErrorText>{errors.time}</ErrorText>
@@ -510,21 +714,37 @@ export default function BookingForm() {
               Mobile number <span className="font-normal text-slate-500">(only needed for WhatsApp)</span>
             </label>
             <div className="flex gap-2">
-              <span className="flex items-center rounded-xl border border-line bg-mist px-4 text-base font-semibold">+44</span>
+              <select
+                aria-label="Country code"
+                value={form.countryCode}
+                onChange={(e) => set("countryCode", e.target.value)}
+                className={`${inputBase} w-[7.25rem] shrink-0 px-3 ${errors.mobile ? "border-danger" : "border-line"}`}
+              >
+                {COUNTRY_CODES.map(([short, code]) => (
+                  <option key={short} value={code}>{short} {code}</option>
+                ))}
+                <option value="">Other</option>
+              </select>
               <input
                 id="mobile"
                 type="tel"
                 autoComplete="tel-national"
                 inputMode="tel"
-                placeholder="7XXX XXXXXX"
+                placeholder={form.countryCode === "+44" ? "7XXX XXXXXX" : form.countryCode ? "Phone number" : "+ and full number"}
                 value={form.mobile}
                 onChange={(e) => set("mobile", e.target.value)}
                 aria-invalid={!!errors.mobile}
-                aria-describedby={errors.mobile ? "mobile-err" : undefined}
+                aria-describedby={errors.mobile ? "mobile-err" : "mobile-help"}
                 className={`${inputBase} ${errors.mobile ? "border-danger" : "border-line"}`}
               />
             </div>
-            <ErrorText id="mobile-err">{errors.mobile}</ErrorText>
+            {errors.mobile ? (
+              <ErrorText id="mobile-err">{errors.mobile}</ErrorText>
+            ) : (
+              <p id="mobile-help" className="mt-1.5 text-sm text-slate-600">
+                Any country works. Pick your code, or type the full number starting with +.
+              </p>
+            )}
           </div>
 
           <div className="mt-5 space-y-3 text-sm text-slate-700">

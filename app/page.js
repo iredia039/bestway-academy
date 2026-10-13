@@ -35,7 +35,7 @@ function SampleSheet() {
     <div className="rounded-2xl border border-line bg-white p-5 shadow-sm" aria-label="Sample Snapshot">
       <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
         <div>
-          <p className="font-extrabold">Tobi, Year 6</p>
+          <p className="font-extrabold">Rin, Year 6</p>
           <p className="text-sm text-slate-600">Maths, 30-minute session</p>
         </div>
         <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-brand">Sample Snapshot</span>
@@ -45,7 +45,7 @@ function SampleSheet() {
           <p className="font-bold text-ok">Strengths</p>
           <ul className="mt-1 space-y-1 text-slate-700">
             <li>Quick, accurate mental addition</li>
-            <li>Explains his thinking out loud</li>
+            <li>Explains her thinking out loud</li>
           </ul>
         </div>
         <div>
@@ -74,7 +74,7 @@ function Hero() {
           </p>
           <ul className="mt-6 space-y-2 font-semibold">
             <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>Live with a real tutor</li>
-            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>UK curriculum, Years 1 to 13</li>
+            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>UK curriculum, Years 1 to 13, from anywhere in the world</li>
             <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>No card needed, no obligation to enrol</li>
           </ul>
           <div className="mt-8 hidden lg:block">
@@ -147,6 +147,7 @@ function Faq() {
     ["How do I know my time is confirmed?", "After you book, we email you to confirm your time. If we cannot offer the slot you chose, we will suggest another."],
     ["What if none of the times suit?", "Email us and we will find one that works."],
     ["Which year groups do you cover?", "Years 1 to 13, following the UK curriculum."],
+    ["We don't live in the UK. Can we still book?", "Yes. Sessions are live online and run on UK time, from 4:00 to 7:30 pm. The booking form shows each slot in your own time zone, so you can see exactly when it starts for you."],
   ];
   return (
     <section id="faq" className="mx-auto max-w-3xl px-5 py-16">
