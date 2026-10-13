@@ -4,4 +4,4 @@
 export const FORMSPREE_ENDPOINT = "https://formspree.io/f/xrpelozw";
 
 // Shown in the "None of these times work? Email us" link.
-export const CONTACT_EMAIL = "hello@example.com";
+export const CONTACT_EMAIL = "celestineokoro724@gmail.com";

@@ -74,7 +74,7 @@ function Hero() {
           </p>
           <ul className="mt-6 space-y-2 font-semibold">
             <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>Live with a real tutor</li>
-            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>UK curriculum, Years 1 to 13, from anywhere in the world</li>
+            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>UK curriculum, ages 5 to 18, from anywhere in the world</li>
             <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>No card needed, no obligation to enrol</li>
           </ul>
           <div className="mt-8 hidden lg:block">
@@ -146,7 +146,7 @@ function Faq() {
     ["What does my child need?", "A quiet space, a laptop or tablet with camera and microphone, and pen and paper. An adult should be nearby, and you should join two minutes early."],
     ["How do I know my time is confirmed?", "After you book, we email you to confirm your time. If we cannot offer the slot you chose, we will suggest another."],
     ["What if none of the times suit?", "Email us and we will find one that works."],
-    ["Which year groups do you cover?", "Years 1 to 13, following the UK curriculum."],
+    ["Which ages do you cover?", "Ages 5 to 18: primary (Years 1 to 6), lower secondary (Years 7 to 9), GCSE (Years 10 and 11) and A-level (Years 12 and 13), following the UK curriculum. Not sure which year your child is in? The form explains how to tell from their age."],
     ["We don't live in the UK. Can we still book?", "Yes. Sessions are live online and run on UK time, from 4:00 to 7:30 pm. The booking form shows each slot in your own time zone, so you can see exactly when it starts for you."],
   ];
   return (

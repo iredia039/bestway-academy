@@ -5,7 +5,16 @@ import { FORMSPREE_ENDPOINT, CONTACT_EMAIL } from "../config";
 
 const UK_TZ = "Europe/London";
 
-const YEAR_GROUPS = Array.from({ length: 13 }, (_, i) => `Year ${i + 1}`);
+// School stages, so families anywhere can tell where their child fits. Year N is age N+4 on 31 August.
+const STAGES = [
+  { id: "primary", title: "Primary", ages: "Ages 5 to 11", note: "Years 1 to 6", years: [1, 2, 3, 4, 5, 6] },
+  { id: "lower", title: "Lower secondary", ages: "Ages 11 to 14", note: "Years 7 to 9", years: [7, 8, 9] },
+  { id: "gcse", title: "GCSE", ages: "Ages 14 to 16", note: "Years 10 and 11", years: [10, 11] },
+  { id: "alevel", title: "A-level", ages: "Ages 16 to 18", note: "Years 12 and 13", years: [12, 13] },
+];
+const yearNumber = (label) => Number(String(label).replace("Year ", ""));
+const yearAges = (n) => `ages ${n + 4} to ${n + 5}`;
+const EXAM_BOARD_YEARS = ["Year 10", "Year 11", "Year 12", "Year 13"];
 const SUBJECTS = ["Maths", "English", "Science", "Other", "Not sure"];
 const HELP = ["Building confidence", "Catching up", "Exam preparation"];
 
@@ -49,6 +58,7 @@ const EMAIL_TYPOS = {
 
 const EMPTY = {
   childName: "",
+  stage: "",
   yearGroup: "",
   examBoard: "",
   subject: "",
@@ -270,6 +280,39 @@ function SlotButton({ slot, selected, showUk, onClick }) {
   );
 }
 
+function StageCard({ stage, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`flex flex-col items-start rounded-2xl border p-3.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+        selected ? "border-brand bg-brand text-white" : "border-line bg-white hover:border-brand"
+      }`}
+    >
+      <span className="text-base font-extrabold">{stage.title}</span>
+      <span className={`text-sm font-semibold ${selected ? "text-white" : "text-brand"}`}>{stage.ages}</span>
+      <span className={`mt-0.5 text-xs ${selected ? "text-white/85" : "text-slate-600"}`}>{stage.note}</span>
+    </button>
+  );
+}
+
+function YearButton({ label, ages, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={onClick}
+      className={`flex min-h-14 flex-col items-center justify-center rounded-2xl border px-1 py-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
+        selected ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:border-brand"
+      }`}
+    >
+      <span className="text-sm font-bold">{label}</span>
+      <span className={`text-xs ${selected ? "text-white/85" : "text-slate-600"}`}>{ages}</span>
+    </button>
+  );
+}
+
 const inputBase =
   "w-full rounded-xl border bg-white px-4 py-3 text-base text-ink placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand";
 
@@ -323,7 +366,8 @@ export default function BookingForm() {
 
   const tz = form.timeZone || UK_TZ;
   const isUk = tz === UK_TZ;
-  const showExamBoard = form.yearGroup === "Year 10" || form.yearGroup === "Year 11";
+  const currentStage = STAGES.find((st) => st.id === form.stage);
+  const showExamBoard = EXAM_BOARD_YEARS.includes(form.yearGroup);
   const described = useMemo(() => allSlots.map((iso) => describeSlot(iso, tz)), [allSlots, tz]);
   const stripDays = useMemo(() => {
     const seen = new Set();
@@ -344,7 +388,8 @@ export default function BookingForm() {
     const e = {};
     if (forStep === 1) {
       if (!form.childName.trim()) e.childName = "Enter your child's first name.";
-      if (!form.yearGroup) e.yearGroup = "Choose a year group.";
+      if (!form.stage) e.stage = "Choose your child's stage.";
+      else if (!form.yearGroup) e.yearGroup = "Choose a year.";
       if (!form.subject) e.subject = "Choose a focus subject.";
     }
     if (forStep === 2) {
@@ -366,6 +411,17 @@ export default function BookingForm() {
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  function pickStage(id) {
+    const st = STAGES.find((x) => x.id === id);
+    setForm((f) => ({
+      ...f,
+      stage: id,
+      yearGroup: st.years.some((n) => `Year ${n}` === f.yearGroup) ? f.yearGroup : "",
+      examBoard: f.examBoard,
+    }));
+    setErrors((e) => ({ ...e, stage: undefined, yearGroup: undefined }));
   }
 
   function changeTimeZone(z) {
@@ -416,6 +472,8 @@ export default function BookingForm() {
       mobile: phone.e164 || "",
       child_first_name: form.childName.trim(),
       year_group: form.yearGroup,
+      school_stage: currentStage?.title,
+      child_age_range: `${yearNumber(form.yearGroup) + 4} to ${yearNumber(form.yearGroup) + 5}`,
       exam_board: form.examBoard.trim(),
       focus_subject: form.subject,
       helps_most: form.helpMost,
@@ -464,7 +522,7 @@ export default function BookingForm() {
 
   if (done) {
     const rows = [
-      ["Child", `${form.childName.trim()}, ${form.yearGroup}`],
+      ["Child", `${form.childName.trim()}, ${form.yearGroup} (${yearAges(yearNumber(form.yearGroup))})`],
       ["Subject", form.subject],
       ["UK time", `${chosen?.ukDayLong}, ${chosen?.ukTime}`],
       ...(isUk ? [] : [["Your time", `${chosen?.localDayLong}, ${chosen?.localTime} (${tzLabel(tz)})`]]),
@@ -548,23 +606,41 @@ export default function BookingForm() {
             <ErrorText id="childName-err">{errors.childName}</ErrorText>
           </div>
 
-          <div className="mt-4">
-            <label htmlFor="yearGroup" className="mb-1.5 block text-sm font-semibold">Year group</label>
-            <select
-              id="yearGroup"
-              value={form.yearGroup}
-              onChange={(e) => set("yearGroup", e.target.value)}
-              aria-invalid={!!errors.yearGroup}
-              aria-describedby={errors.yearGroup ? "yearGroup-err" : undefined}
-              className={`${inputBase} ${errors.yearGroup ? "border-danger" : "border-line"}`}
-            >
-              <option value="">Choose a year group</option>
-              {YEAR_GROUPS.map((y) => (
-                <option key={y} value={y}>{y}</option>
+          <fieldset className="mt-4">
+            <legend className="mb-2 text-sm font-semibold">Which stage is your child at?</legend>
+            <div className="grid grid-cols-2 gap-2">
+              {STAGES.map((st) => (
+                <StageCard key={st.id} stage={st} selected={form.stage === st.id} onClick={() => pickStage(st.id)} />
               ))}
-            </select>
-            <ErrorText id="yearGroup-err">{errors.yearGroup}</ErrorText>
-          </div>
+            </div>
+            <ErrorText>{errors.stage}</ErrorText>
+          </fieldset>
+
+          {currentStage && (
+            <fieldset className="mt-4">
+              <legend className="mb-2 text-sm font-semibold">Which year?</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {currentStage.years.map((n) => (
+                  <YearButton
+                    key={n}
+                    label={`Year ${n}`}
+                    ages={yearAges(n)}
+                    selected={form.yearGroup === `Year ${n}`}
+                    onClick={() => set("yearGroup", `Year ${n}`)}
+                  />
+                ))}
+              </div>
+              <ErrorText>{errors.yearGroup}</ErrorText>
+            </fieldset>
+          )}
+
+          <details className="mt-3 text-sm text-slate-700">
+            <summary className="cursor-pointer font-semibold text-brand">Not sure which year? Use your child&apos;s age</summary>
+            <p className="mt-2">
+              Count your child&apos;s age on 31 August before the school year starts. Age 5 is Year 1, age 6 is Year 2, and so on up to age 17 for Year 13.
+            </p>
+            <p className="mt-1">In the US, the UK year is one higher than the grade. Grade 5 is about Year 6.</p>
+          </details>
 
           {showExamBoard && (
             <div className="mt-4">
