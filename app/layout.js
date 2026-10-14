@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Free Learning Snapshot | Bestway Online Academy",
+  title: "Bestway Online Academy",
   description:
     "A free 30-minute live session with a tutor, then a one-page Snapshot showing where your child stands. UK curriculum, Years 1 to 13.",
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FORMSPREE_ENDPOINT, CONTACT_EMAIL } from "../config";
+import { FORMSPREE_ENDPOINT, CONTACT_EMAIL, OWNER_WHATSAPP } from "../config";
 
 const UK_TZ = "Europe/London";
 
@@ -21,30 +21,19 @@ const HELP = ["Building confidence", "Catching up", "Exam preparation"];
 // Sessions run on UK time: 4:00 pm to 7:30 pm. Each entry is [hour, minute] in 24-hour UK time.
 const UK_SLOTS = [[16, 0], [16, 30], [17, 0], [17, 30], [18, 0], [18, 30], [19, 0], [19, 30]];
 
-// [short label, dial code]. The UK is first and is the default.
+// [country, dial code]. The United Kingdom is first and is the default.
 const COUNTRY_CODES = [
-  ["UK", "+44"], ["IE", "+353"], ["US/CA", "+1"], ["NG", "+234"], ["GH", "+233"], ["KE", "+254"],
-  ["ZA", "+27"], ["EG", "+20"], ["UG", "+256"], ["TZ", "+255"], ["ZM", "+260"], ["ZW", "+263"],
-  ["CM", "+237"], ["AE", "+971"], ["SA", "+966"], ["QA", "+974"], ["IN", "+91"], ["PK", "+92"],
-  ["BD", "+880"], ["LK", "+94"], ["SG", "+65"], ["MY", "+60"], ["HK", "+852"], ["CN", "+86"],
-  ["JP", "+81"], ["KR", "+82"], ["PH", "+63"], ["AU", "+61"], ["NZ", "+64"], ["FR", "+33"],
-  ["DE", "+49"], ["ES", "+34"], ["IT", "+39"], ["NL", "+31"], ["BE", "+32"], ["PT", "+351"],
-  ["PL", "+48"], ["SE", "+46"], ["NO", "+47"], ["CH", "+41"], ["TR", "+90"], ["BR", "+55"],
-  ["MX", "+52"], ["JM", "+1876"], ["TT", "+1868"],
+  ["United Kingdom", "+44"], ["Ireland", "+353"], ["United States / Canada", "+1"], ["Nigeria", "+234"],
+  ["Ghana", "+233"], ["Kenya", "+254"], ["South Africa", "+27"], ["Egypt", "+20"], ["Uganda", "+256"],
+  ["Tanzania", "+255"], ["Zambia", "+260"], ["Zimbabwe", "+263"], ["Cameroon", "+237"],
+  ["United Arab Emirates", "+971"], ["Saudi Arabia", "+966"], ["Qatar", "+974"], ["India", "+91"],
+  ["Pakistan", "+92"], ["Bangladesh", "+880"], ["Sri Lanka", "+94"], ["Singapore", "+65"],
+  ["Malaysia", "+60"], ["Hong Kong", "+852"], ["China", "+86"], ["Japan", "+81"], ["South Korea", "+82"],
+  ["Philippines", "+63"], ["Australia", "+61"], ["New Zealand", "+64"], ["France", "+33"],
+  ["Germany", "+49"], ["Spain", "+34"], ["Italy", "+39"], ["Netherlands", "+31"], ["Belgium", "+32"],
+  ["Portugal", "+351"], ["Poland", "+48"], ["Sweden", "+46"], ["Norway", "+47"], ["Switzerland", "+41"],
+  ["Turkey", "+90"], ["Brazil", "+55"], ["Mexico", "+52"], ["Jamaica", "+1876"], ["Trinidad and Tobago", "+1868"],
 ];
-
-// Used to pre-select a sensible country code from the visitor's time zone.
-const TZ_DIAL = {
-  "Europe/London": "+44", "Europe/Dublin": "+353", "Africa/Lagos": "+234", "Africa/Accra": "+233",
-  "Africa/Nairobi": "+254", "Africa/Johannesburg": "+27", "Africa/Cairo": "+20", "Asia/Dubai": "+971",
-  "Asia/Riyadh": "+966", "Asia/Kolkata": "+91", "Asia/Calcutta": "+91", "Asia/Karachi": "+92",
-  "Asia/Dhaka": "+880", "Asia/Singapore": "+65", "Asia/Kuala_Lumpur": "+60", "Asia/Hong_Kong": "+852",
-  "Asia/Shanghai": "+86", "Asia/Tokyo": "+81", "Asia/Seoul": "+82", "Asia/Manila": "+63",
-  "Australia/Sydney": "+61", "Australia/Melbourne": "+61", "Pacific/Auckland": "+64",
-  "America/New_York": "+1", "America/Chicago": "+1", "America/Denver": "+1", "America/Los_Angeles": "+1",
-  "America/Toronto": "+1", "Europe/Paris": "+33", "Europe/Berlin": "+49", "Europe/Madrid": "+34",
-  "Europe/Rome": "+39", "Europe/Amsterdam": "+31",
-};
 
 const EMAIL_TYPOS = {
   "gmial.com": "gmail.com",
@@ -65,7 +54,7 @@ const EMPTY = {
   helpMost: "",
   date: null, // the day picked, in the visitor's own time zone, like 2026-10-15
   slotIso: "", // the exact moment picked (UTC), like 2026-10-15T15:00:00.000Z
-  timeZone: "",
+  timeZone: UK_TZ,
   parentName: "",
   email: "",
   countryCode: "+44",
@@ -325,6 +314,7 @@ export default function BookingForm() {
   const [errors, setErrors] = useState({});
   const [allSlots, setAllSlots] = useState([]);
   const [tzList, setTzList] = useState([]);
+  const [detectedTz, setDetectedTz] = useState("");
   const [sending, setSending] = useState(false);
   const [serverError, setServerError] = useState("");
   const cardRef = useRef(null);
@@ -340,12 +330,7 @@ export default function BookingForm() {
       detected = UK_TZ;
     }
     setTzList(getTimeZones(detected));
-    const dial = TZ_DIAL[detected];
-    setForm((f) => ({
-      ...f,
-      timeZone: detected,
-      countryCode: dial && COUNTRY_CODES.some((c) => c[1] === dial) ? dial : f.countryCode,
-    }));
+    setDetectedTz(detected);
   }, []);
 
   // On phones, bring the card back into view when the step changes.
@@ -521,6 +506,8 @@ export default function BookingForm() {
     "rounded-3xl border border-line bg-white p-6 shadow-[0_18px_50px_-20px_rgba(1,64,170,0.35)] sm:p-8";
 
   if (done) {
+    const waText = `Hello Bestway Online Academy, I have just requested a free Learning Snapshot for ${form.childName.trim()} (${form.yearGroup}) on ${chosen?.ukDayLong} at ${chosen?.ukTime} UK time. My name is ${form.parentName.trim()}.`;
+    const waHref = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(waText)}`;
     const rows = [
       ["Child", `${form.childName.trim()}, ${form.yearGroup} (${yearAges(yearNumber(form.yearGroup))})`],
       ["Subject", form.subject],
@@ -548,6 +535,19 @@ export default function BookingForm() {
             </div>
           ))}
         </dl>
+
+        <a
+          href={waHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+            <path d="M12 2C6.48 2 2 6.03 2 11c0 2.12.82 4.07 2.2 5.6L3 22l5.1-1.7c1.2.45 2.5.7 3.9.7 5.52 0 10-4.03 10-9s-4.48-9-10-9z" />
+          </svg>
+          Message us on WhatsApp
+        </a>
+        <p className="mt-2 text-center text-xs text-slate-600">Opens WhatsApp with a message ready to send.</p>
 
         <h3 className="mt-6 font-bold">How to get ready</h3>
         <ol className="mt-3 space-y-2 text-sm text-slate-700">
@@ -711,6 +711,15 @@ export default function BookingForm() {
             ) : (
               <div className="h-[50px] rounded-xl bg-mist" />
             )}
+            {detectedTz && detectedTz !== UK_TZ && form.timeZone === UK_TZ && (
+              <button
+                type="button"
+                onClick={() => changeTimeZone(detectedTz)}
+                className="mt-2 text-sm font-semibold text-brand underline underline-offset-4"
+              >
+                Use my time zone ({tzLabel(detectedTz)})
+              </button>
+            )}
           </div>
 
           <fieldset className="mt-5">
@@ -838,17 +847,17 @@ export default function BookingForm() {
             <label htmlFor="mobile" className="mb-1.5 block text-sm font-semibold">
               Mobile number <span className="font-normal text-slate-500">(only needed for WhatsApp)</span>
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <select
                 aria-label="Country code"
                 value={form.countryCode}
                 onChange={(e) => set("countryCode", e.target.value)}
-                className={`${inputBase} w-[7.25rem] shrink-0 px-3 ${errors.mobile ? "border-danger" : "border-line"}`}
+                className={`${inputBase} ${errors.mobile ? "border-danger" : "border-line"}`}
               >
-                {COUNTRY_CODES.map(([short, code]) => (
-                  <option key={short} value={code}>{short} {code}</option>
+                {COUNTRY_CODES.map(([name, code]) => (
+                  <option key={name} value={code}>{name} ({code})</option>
                 ))}
-                <option value="">Other</option>
+                <option value="">Other country (type the number starting with +)</option>
               </select>
               <input
                 id="mobile"
