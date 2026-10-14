@@ -50,7 +50,7 @@ const EMPTY = {
   stage: "",
   yearGroup: "",
   examBoard: "",
-  subject: "",
+  subject: [],
   helpMost: "",
   date: null, // the day picked, in the visitor's own time zone, like 2026-10-15
   slotIso: "", // the exact moment picked (UTC), like 2026-10-15T15:00:00.000Z
@@ -61,7 +61,6 @@ const EMPTY = {
   mobile: "",
   whatsapp: false,
   guardian: false,
-  privacy: false,
   marketing: false,
   botField: "",
 };
@@ -375,7 +374,7 @@ export default function BookingForm() {
       if (!form.childName.trim()) e.childName = "Enter your child's first name.";
       if (!form.stage) e.stage = "Choose your child's stage.";
       else if (!form.yearGroup) e.yearGroup = "Choose a year.";
-      if (!form.subject) e.subject = "Choose a focus subject.";
+      if (form.subject.length === 0) e.subject = "Choose at least one subject.";
     }
     if (forStep === 2) {
       if (!form.date) e.date = "Choose a day.";
@@ -392,10 +391,23 @@ export default function BookingForm() {
         e.mobile = phone.error;
       }
       if (!form.guardian) e.guardian = "You need to confirm this to book.";
-      if (!form.privacy) e.privacy = "You need to confirm this to book.";
     }
     setErrors(e);
     return Object.keys(e).length === 0;
+  }
+
+  function toggleSubject(name) {
+    setForm((f) => {
+      let next;
+      if (name === "Not sure") {
+        next = f.subject.includes("Not sure") ? [] : ["Not sure"];
+      } else {
+        const without = f.subject.filter((x) => x !== "Not sure");
+        next = without.includes(name) ? without.filter((x) => x !== name) : [...without, name];
+      }
+      return { ...f, subject: next };
+    });
+    setErrors((e) => ({ ...e, subject: undefined }));
   }
 
   function pickStage(id) {
@@ -460,7 +472,7 @@ export default function BookingForm() {
       school_stage: currentStage?.title,
       child_age_range: `${yearNumber(form.yearGroup) + 4} to ${yearNumber(form.yearGroup) + 5}`,
       exam_board: form.examBoard.trim(),
-      focus_subject: form.subject,
+      focus_subject: form.subject.join(", "),
       helps_most: form.helpMost,
       requested_day_uk: chosen?.ukDayLong,
       requested_time_uk: chosen?.ukTime,
@@ -468,7 +480,6 @@ export default function BookingForm() {
       parent_time_zone: tz,
       reply_on_whatsapp: form.whatsapp ? "Yes" : "No",
       guardian_confirmed: form.guardian ? "Yes" : "No",
-      privacy_confirmed: form.privacy ? "Yes" : "No",
       marketing_opt_in: form.marketing ? "Yes" : "No",
       _gotcha: form.botField,
     };
@@ -510,7 +521,7 @@ export default function BookingForm() {
     const waHref = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(waText)}`;
     const rows = [
       ["Child", `${form.childName.trim()}, ${form.yearGroup} (${yearAges(yearNumber(form.yearGroup))})`],
-      ["Subject", form.subject],
+      ["Subject", form.subject.join(", ")],
       ["UK time", `${chosen?.ukDayLong}, ${chosen?.ukTime}`],
       ...(isUk ? [] : [["Your time", `${chosen?.localDayLong}, ${chosen?.localTime} (${tzLabel(tz)})`]]),
       ["Length", "30 minutes"],
@@ -540,7 +551,7 @@ export default function BookingForm() {
           href={waHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-brand py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-green-700 py-3.5 text-base font-bold text-white transition-colors hover:bg-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
             <path d="M12 2C6.48 2 2 6.03 2 11c0 2.12.82 4.07 2.2 5.6L3 22l5.1-1.7c1.2.45 2.5.7 3.9.7 5.52 0 10-4.03 10-9s-4.48-9-10-9z" />
@@ -659,10 +670,12 @@ export default function BookingForm() {
           )}
 
           <fieldset className="mt-4">
-            <legend className="mb-2 text-sm font-semibold">Focus subject for the 30 minutes</legend>
+            <legend className="mb-2 text-sm font-semibold">
+              Focus subjects for the 30 minutes <span className="font-normal text-slate-500">(pick one or more)</span>
+            </legend>
             <div className="flex flex-wrap gap-2">
               {SUBJECTS.map((s) => (
-                <Pill key={s} selected={form.subject === s} onClick={() => set("subject", s)}>{s}</Pill>
+                <Pill key={s} selected={form.subject.includes(s)} onClick={() => toggleSubject(s)}>{s}</Pill>
               ))}
             </div>
             <ErrorText>{errors.subject}</ErrorText>
@@ -895,16 +908,6 @@ export default function BookingForm() {
                 </span>
               </label>
               <ErrorText>{errors.guardian}</ErrorText>
-            </div>
-
-            <div>
-              <label className="flex cursor-pointer items-start gap-3">
-                <input type="checkbox" checked={form.privacy} onChange={(e) => set("privacy", e.target.checked)} aria-invalid={!!errors.privacy} className="mt-0.5 h-5 w-5 shrink-0 accent-brand" />
-                <span>
-                  I have read the Privacy Notice and agree you can use my details to arrange this Snapshot. <span className="text-danger" aria-label="required">*</span>
-                </span>
-              </label>
-              <ErrorText>{errors.privacy}</ErrorText>
             </div>
 
             <label className="flex cursor-pointer items-start gap-3">

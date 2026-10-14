@@ -8,4 +8,4 @@ export const CONTACT_EMAIL = "celestineokoro724@gmail.com";
 
 // Owner's WhatsApp number for the "Message us on WhatsApp" button after booking.
 // Full international number, digits only (no +, spaces or dashes). Example: 447700900123
-export const OWNER_WHATSAPP = "447700900123";
+export const OWNER_WHATSAPP = "07037565597";
