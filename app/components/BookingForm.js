@@ -517,7 +517,7 @@ export default function BookingForm() {
     "rounded-3xl border border-line bg-white p-6 shadow-[0_18px_50px_-20px_rgba(1,64,170,0.35)] sm:p-8";
 
   if (done) {
-    const waText = `Hello Bestway Online Academy, I have just requested a free Learning Snapshot for ${form.childName.trim()} (${form.yearGroup}) on ${chosen?.ukDayLong} at ${chosen?.ukTime} UK time. My name is ${form.parentName.trim()}.`;
+    const waText = `Hello Bestway Online Academy, I have just requested a free Learning Session for ${form.childName.trim()} (${form.yearGroup}) on ${chosen?.ukDayLong} at ${chosen?.ukTime} UK time. My name is ${form.parentName.trim()} and my child's name is ${form.childName.trim()}.`;
     const waHref = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(waText)}`;
     const rows = [
       ["Child", `${form.childName.trim()}, ${form.yearGroup} (${yearAges(yearNumber(form.yearGroup))})`],
@@ -724,7 +724,7 @@ export default function BookingForm() {
             ) : (
               <div className="h-[50px] rounded-xl bg-mist" />
             )}
-            {detectedTz && detectedTz !== UK_TZ && form.timeZone === UK_TZ && (
+            {/* {detectedTz && detectedTz !== UK_TZ && form.timeZone === UK_TZ && (
               <button
                 type="button"
                 onClick={() => changeTimeZone(detectedTz)}
@@ -732,7 +732,7 @@ export default function BookingForm() {
               >
                 Use my time zone ({tzLabel(detectedTz)})
               </button>
-            )}
+            )} */}
           </div>
 
           <fieldset className="mt-5">
