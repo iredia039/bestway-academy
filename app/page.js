@@ -64,8 +64,8 @@ function SampleSheet() {
     </div>
 
       <div className="mt-8">
-                      <a href="https://wa.me//447830740997" className="mt-8 text-white underline decoration-1 lg:bg-brand lg:rounded-md p-2 underline-offset-4">
-            want to find out more? reach us on whatsapp
+                      <a href="https://wa.me//447830740997" className="mt-4 lg:mt-8 lg:text-white underline decoration-1 lg:bg-brand lg:rounded-md lg:p-2 underline-offset-4">
+            Want To find out more? Tap This Link To Reach Us On Whatsapp
           </a>
       </div>
     </>
