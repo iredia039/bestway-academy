@@ -1,4 +1,5 @@
 import BookingForm from "./components/BookingForm";
+import config from './config'
 
 function Logo() {
   return (
@@ -25,14 +26,18 @@ function Nav() {
         <a href="#book" className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
           Book free
         </a>
+
+
       </div>
     </header>
   );
 }
 
 function SampleSheet() {
+  const link = 'https://wa.me//447830740997'
   return (
-    <div className="rounded-2xl border border-line bg-white p-5 shadow-sm" aria-label="Sample Snapshot">
+    <>
+        <div className="rounded-2xl border border-line bg-white p-5 shadow-sm" aria-label="Sample Snapshot">
       <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
         <div>
           <p className="font-extrabold">Rin, Year 6</p>
@@ -57,6 +62,11 @@ function SampleSheet() {
         </div>
       </div>
     </div>
+
+              <a href="https://wa.me//447830740997" className="text-blue-500 underline decoration-2 underline-offset-4">
+            want to find out more? reach us on whatsapp
+          </a>
+    </>
   );
 }
 
