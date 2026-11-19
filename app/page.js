@@ -1,5 +1,6 @@
 import BookingForm from "./components/BookingForm";
-import config from './config'
+import TeamCarousel from "./components/TeamCarousel";
+import { CONTACT_EMAIL, OWNER_WHATSAPP, SOCIALS } from "./config";
 
 function Logo() {
   return (
@@ -19,79 +20,57 @@ function Nav() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Logo />
         <nav className="hidden items-center gap-8 text-sm font-semibold md:flex" aria-label="Page sections">
-          <a href="#snapshot" className="hover:text-brand">The Snapshot</a>
-          <a href="#how" className="hover:text-brand">How it works</a>
-          <a href="#faq" className="hover:text-brand">Questions</a>
+          <a href="#team" className="hover:text-brand">Meet the team</a>
+          <a href="#contact" className="hover:text-brand">Contact</a>
         </nav>
-        <a href="#book" className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
+        <a
+          href="#book"
+          className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+        >
           Book free
         </a>
-
-
       </div>
     </header>
   );
 }
 
-function SampleSheet() {
-  const link = 'https://wa.me//447830740997'
-  return (
-    <>
-        <div className="rounded-2xl border border-line bg-white p-5 shadow-sm" aria-label="Sample Snapshot">
-      <div className="flex items-start justify-between gap-3 border-b border-line pb-3">
-        <div>
-          <p className="font-extrabold">Rin, Year 6</p>
-          <p className="text-sm text-slate-600">Maths, 30-minute session</p>
-        </div>
-        <span className="rounded-full bg-mist px-3 py-1 text-xs font-semibold text-brand">Sample Snapshot</span>
-      </div>
-      <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
-        <div>
-          <p className="font-bold text-ok">Strengths</p>
-          <ul className="mt-1 space-y-1 text-slate-700">
-            <li>Quick, accurate mental addition</li>
-            <li>Explains her thinking out loud</li>
-          </ul>
-        </div>
-        <div>
-          <p className="font-bold text-brand">Gaps</p>
-          <ul className="mt-1 space-y-1 text-slate-700">
-            <li>Fractions of amounts</li>
-            <li>Setting out multi-step problems</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-      <div className="mt-8">
-                      <a href="https://wa.me//447830740997" className="mt-4 lg:mt-8 lg:text-white underline decoration-1 lg:bg-brand lg:rounded-md lg:p-2 underline-offset-4">
-            Want To find out more? Tap This Link To Reach Us On Whatsapp
-          </a>
-      </div>
-    </>
-  );
-}
-
 function Hero() {
+  const badges = [
+    "Live with a real tutor",
+    "Global school systems (UK, US, Canada, International)",
+    "No card needed, no obligation to enrol",
+  ];
   return (
     <section id="top" className="bg-mist">
       <div className="mx-auto grid max-w-6xl gap-10 px-5 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-start lg:gap-14 lg:py-16">
         <div>
-          <p className="inline-block rounded-full bg-white px-4 py-1.5 text-sm font-bold text-brand">Completely free</p>
-          <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl">
-            Know exactly where your child stands in just 30 minutes.
+          <p className="inline-block rounded-full bg-white px-4 py-1.5 text-sm font-bold text-accent">Completely free</p>
+          <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight text-navy sm:text-5xl">
+            Being abroad shouldn&apos;t mean being <span className="text-accent">in the dark</span> about your child&apos;s education.
           </h1>
           <p className="mt-5 max-w-xl text-lg text-slate-700">
-            A free, friendly live session with one of our tutors, then a one-page Snapshot made just for your child.
+            Discover exactly where your child stands academically with a <strong className="font-extrabold text-accent">Free Assessment</strong>. Our expert tutors identify learning needs and recommend a personalized approach to help them thrive across global school systems.
           </p>
+          <a
+            href="#book"
+            className="mt-7 inline-block rounded-full bg-accent px-7 py-3.5 text-base font-bold text-white shadow-sm transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-mist"
+          >
+            Book Your Free Assessment
+          </a>
           <ul className="mt-6 space-y-2 font-semibold">
-            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>Live with a real tutor</li>
-            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>UK curriculum, ages 5 to 18, from anywhere in the world</li>
-            <li className="flex items-center gap-3"><span className="text-ok" aria-hidden="true">✓</span>No card needed, no obligation to enrol</li>
+            {badges.map((b) => (
+              <li key={b} className="flex items-start gap-3">
+                <span className="text-accent" aria-hidden="true">✓</span>
+                {b}
+              </li>
+            ))}
           </ul>
-          <div className="mt-8 hidden lg:block">
-            <SampleSheet />
-          </div>
+          <a
+            href={`https://wa.me/${OWNER_WHATSAPP}`}
+            className="mt-6 inline-block text-sm underline decoration-1 underline-offset-4"
+          >
+            Want to find out more? Tap this link to reach us on WhatsApp
+          </a>
         </div>
 
         <BookingForm />
@@ -100,95 +79,40 @@ function Hero() {
   );
 }
 
-function Snapshot() {
-  return (
-    <section id="snapshot" className="mx-auto max-w-6xl px-5 py-16">
-      <h2 className="max-w-2xl text-3xl font-extrabold tracking-tight">A gentle check-up with a summary you can actually use</h2>
-      <p className="mt-3 max-w-2xl text-lg text-slate-700">
-        The Snapshot is one page. No scores to decode and no jargon, just what your child can do and where a little support goes a long way.
-      </p>
-      <div className="mt-8 lg:hidden">
-        <SampleSheet />
-      </div>
-      <div className="mt-8 grid overflow-hidden rounded-3xl border border-line md:grid-cols-3 md:divide-x md:divide-line">
-        {[
-          ["2 strengths", "What your child already does well, so you know what to celebrate."],
-          ["1 to 2 gaps", "Where a little support goes a long way, in plain language."],
-          ["A next step", "One clear suggestion for what to work on first."],
-        ].map(([title, text]) => (
-          <div key={title} className="border-b border-line p-6 last:border-b-0 md:border-b-0">
-            <h3 className="text-xl font-extrabold text-brand">{title}</h3>
-            <p className="mt-2 text-slate-700">{text}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function How() {
-  const steps = [
-    ["Book a time", "Tell us about your child and pick a slot that suits you. It takes about two minutes."],
-    ["Meet your tutor", "Join a friendly 30-minute live session from a laptop or tablet. An adult stays nearby."],
-    ["Get the Snapshot", "After the session, we email your child's one-page Snapshot to you."],
-  ];
-  return (
-    <section id="how" className="bg-mist">
-      <div className="mx-auto max-w-6xl px-5 py-16">
-        <h2 className="text-3xl font-extrabold tracking-tight">How it works</h2>
-        <ol className="mt-8 grid gap-8 md:grid-cols-3">
-          {steps.map(([title, text], i) => (
-            <li key={title} className="flex gap-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand font-extrabold text-white">{i + 1}</span>
-              <div>
-                <h3 className="text-lg font-extrabold">{title}</h3>
-                <p className="mt-1 text-slate-700">{text}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
-}
-
-function Faq() {
-  const items = [
-    ["Is it really free?", "Yes. There is no card to enter and no obligation to enrol afterwards."],
-    ["What does my child need?", "A quiet space, a laptop or tablet with camera and microphone, and pen and paper. An adult should be nearby, and you should join two minutes early."],
-    ["How do I know my time is confirmed?", "After you book, we email you to confirm your time. If we cannot offer the slot you chose, we will suggest another."],
-    ["What if none of the times suit?", "Email us and we will find one that works."],
-    ["Which ages do you cover?", "Ages 5 to 18: primary (Years 1 to 6), lower secondary (Years 7 to 9), GCSE (Years 10 and 11) and A-level (Years 12 and 13), following the UK curriculum. Not sure which year your child is in? The form explains how to tell from their age."],
-    ["We don't live in the UK. Can we still book?", "Yes. Sessions are live online and run on UK time, from 4:00 to 7:30 pm. The booking form shows each slot in your own time zone, so you can see exactly when it starts for you."],
-  ];
-  return (
-    <section id="faq" className="mx-auto max-w-3xl px-5 py-16">
-      <h2 className="text-3xl font-extrabold tracking-tight">Questions parents ask</h2>
-      <div className="mt-8 divide-y divide-line border-y border-line">
-        {items.map(([q, a]) => (
-          <details key={q} className="group py-4">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-lg font-bold focus:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-              {q}
-              <span className="text-2xl text-brand transition-transform group-open:rotate-45" aria-hidden="true">+</span>
-            </summary>
-            <p className="mt-2 text-slate-700">{a}</p>
-          </details>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function FinalCta() {
   return (
-    <section className="bg-brand">
+    <section className="bg-navy">
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-6 px-5 py-12 md:flex-row md:items-center">
         <h2 className="max-w-xl text-3xl font-extrabold tracking-tight text-white">Ready to see where your child stands?</h2>
-        <a href="#book" className="rounded-full bg-white px-7 py-3.5 text-base font-bold text-brand transition-colors hover:bg-mist focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-brand">
-          Book my free Snapshot
+        <a
+          href="#book"
+          className="rounded-full bg-accent px-7 py-3.5 text-base font-bold text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-navy"
+        >
+          Book Your Free Assessment
         </a>
       </div>
     </section>
+  );
+}
+
+function Footer() {
+  const socials = SOCIALS.filter((s) => s.url);
+  return (
+    <footer id="contact" className="border-t border-line bg-white">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-5 py-10 text-center text-sm text-slate-600">
+        <img src="/logo.png" alt="Bestway Online Academy: Learn, Grow, Achieve" width={900} height={746} className="h-28 w-auto" />
+        <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-semibold text-navy" aria-label="Contact and social links">
+          <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-accent">{CONTACT_EMAIL}</a>
+          <a href={`https://wa.me/${OWNER_WHATSAPP}`} className="hover:text-accent">WhatsApp</a>
+          {socials.map((s) => (
+            <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="hover:text-accent">
+              {s.name}{s.handle ? ` ${s.handle}` : ""}
+            </a>
+          ))}
+        </nav>
+        <p>© {new Date().getFullYear()} Bestway Online Academy. All rights reserved.</p>
+      </div>
+    </footer>
   );
 }
 
@@ -198,15 +122,10 @@ export default function Home() {
       <Nav />
       <main>
         <Hero />
-        <Snapshot />
-        <How />
-        <Faq />
+        <TeamCarousel />
         <FinalCta />
       </main>
-      <footer className="flex flex-col items-center gap-3 px-5 py-10 text-center text-sm text-slate-600">
-        <img src="/logo.png" alt="Bestway Online Academy: Learn, Grow, Achieve" width={900} height={746} className="h-28 w-auto" />
-        <p>© Bestway Online Academy. Demo website.</p>
-      </footer>
+      <Footer />
     </>
   );
 }

@@ -1,38 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { FORMSPREE_ENDPOINT, CONTACT_EMAIL, OWNER_WHATSAPP } from "../config";
+import { useEffect, useRef, useState } from "react";
+import { FORMSPREE_ENDPOINT, OWNER_WHATSAPP } from "../config";
 
-const UK_TZ = "Europe/London";
-
-// School stages, so families anywhere can tell where their child fits. Year N is age N+4 on 31 August.
+// Cross-system school stages (UK, US, Canada and international equivalents).
 const STAGES = [
-  { id: "primary", title: "Primary", ages: "Ages 5 to 11", note: "Years 1 to 6", years: [1, 2, 3, 4, 5, 6] },
-  { id: "lower", title: "Lower secondary", ages: "Ages 11 to 14", note: "Years 7 to 9", years: [7, 8, 9] },
-  { id: "gcse", title: "GCSE", ages: "Ages 14 to 16", note: "Years 10 and 11", years: [10, 11] },
-  { id: "alevel", title: "A-level", ages: "Ages 16 to 18", note: "Years 12 and 13", years: [12, 13] },
+  { id: "primary", title: "Primary / Elementary", ages: "Ages 5 to 11", uk: "UK Years 1–6", us: "US / Canada Grades 1–5" },
+  { id: "lower", title: "Lower Secondary / Middle School", ages: "Ages 11 to 14", uk: "UK Years 7–9", us: "US / Canada Grades 6–8" },
+  { id: "upper", title: "Upper Secondary / High School", ages: "Ages 14 to 16", uk: "UK Years 10–11 (GCSE / IGCSE)", us: "US / Canada Grades 9–10" },
+  { id: "post16", title: "Advanced / Post-16", ages: "Ages 16 to 18", uk: "UK Years 12–13 (A-Levels / IB)", us: "US / Canada Grades 11–12 (High School / AP)" },
 ];
-const yearNumber = (label) => Number(String(label).replace("Year ", ""));
-const yearAges = (n) => `ages ${n + 4} to ${n + 5}`;
-const EXAM_BOARD_YEARS = ["Year 10", "Year 11", "Year 12", "Year 13"];
-const SUBJECTS = ["Maths", "English", "Science", "Other", "Not sure"];
-const HELP = ["Building confidence", "Catching up", "Exam preparation"];
+const SUBJECTS = ["Maths", "English", "Science", "Other"];
 
-// Sessions run on UK time: 4:00 pm to 7:30 pm. Each entry is [hour, minute] in 24-hour UK time.
-const UK_SLOTS = [[16, 0], [16, 30], [17, 0], [17, 30], [18, 0], [18, 30], [19, 0], [19, 30]];
-
-// [country, dial code]. The United Kingdom is first and is the default.
+// [country, dial code]. United Kingdom first, then United States / Canada, then the rest.
 const COUNTRY_CODES = [
-  ["United Kingdom", "+44"], ["Ireland", "+353"], ["United States / Canada", "+1"], ["Nigeria", "+234"],
-  ["Ghana", "+233"], ["Kenya", "+254"], ["South Africa", "+27"], ["Egypt", "+20"], ["Uganda", "+256"],
-  ["Tanzania", "+255"], ["Zambia", "+260"], ["Zimbabwe", "+263"], ["Cameroon", "+237"],
-  ["United Arab Emirates", "+971"], ["Saudi Arabia", "+966"], ["Qatar", "+974"], ["India", "+91"],
-  ["Pakistan", "+92"], ["Bangladesh", "+880"], ["Sri Lanka", "+94"], ["Singapore", "+65"],
+  ["United Kingdom", "+44"], ["United States / Canada", "+1"],
+  ["Ireland", "+353"], ["Nigeria", "+234"], ["Ghana", "+233"], ["Kenya", "+254"], ["South Africa", "+27"],
+  ["Egypt", "+20"], ["Uganda", "+256"], ["Tanzania", "+255"], ["Zambia", "+260"], ["Zimbabwe", "+263"],
+  ["Cameroon", "+237"], ["United Arab Emirates", "+971"], ["Saudi Arabia", "+966"], ["Qatar", "+974"],
+  ["India", "+91"], ["Pakistan", "+92"], ["Bangladesh", "+880"], ["Sri Lanka", "+94"], ["Singapore", "+65"],
   ["Malaysia", "+60"], ["Hong Kong", "+852"], ["China", "+86"], ["Japan", "+81"], ["South Korea", "+82"],
-  ["Philippines", "+63"], ["Australia", "+61"], ["New Zealand", "+64"], ["France", "+33"],
-  ["Germany", "+49"], ["Spain", "+34"], ["Italy", "+39"], ["Netherlands", "+31"], ["Belgium", "+32"],
-  ["Portugal", "+351"], ["Poland", "+48"], ["Sweden", "+46"], ["Norway", "+47"], ["Switzerland", "+41"],
-  ["Turkey", "+90"], ["Brazil", "+55"], ["Mexico", "+52"], ["Jamaica", "+1876"], ["Trinidad and Tobago", "+1868"],
+  ["Philippines", "+63"], ["Australia", "+61"], ["New Zealand", "+64"], ["France", "+33"], ["Germany", "+49"],
+  ["Spain", "+34"], ["Italy", "+39"], ["Netherlands", "+31"], ["Belgium", "+32"], ["Portugal", "+351"],
+  ["Poland", "+48"], ["Sweden", "+46"], ["Norway", "+47"], ["Switzerland", "+41"], ["Turkey", "+90"],
+  ["Brazil", "+55"], ["Mexico", "+52"], ["Jamaica", "+1876"], ["Trinidad and Tobago", "+1868"],
 ];
 
 const EMAIL_TYPOS = {
@@ -45,23 +36,17 @@ const EMAIL_TYPOS = {
   "outlok.com": "outlook.com",
 };
 
+const WA_MESSAGE =
+  "Hello Bestway Online Academy team! I just registered for a Free Assessment for my child. Here is the time slot that works best for our schedule: ";
+
 const EMPTY = {
-  childName: "",
-  stage: "",
-  yearGroup: "",
-  examBoard: "",
-  subject: [],
-  helpMost: "",
-  date: null, // the day picked, in the visitor's own time zone, like 2026-10-15
-  slotIso: "", // the exact moment picked (UTC), like 2026-10-15T15:00:00.000Z
-  timeZone: UK_TZ,
   parentName: "",
   email: "",
   countryCode: "+44",
   mobile: "",
-  whatsapp: false,
-  guardian: false,
-  marketing: false,
+  childName: "",
+  stage: "",
+  subjects: [],
   botField: "",
 };
 
@@ -99,129 +84,29 @@ function parsePhone(code, raw) {
   if (code === "+44") {
     return nat.length === 10 ? { e164: `+44${nat}` } : { error: "UK mobile numbers have 10 digits, like 7123 456789." };
   }
+  if (code === "+1") {
+    return nat.length === 10 ? { e164: `+1${nat}` } : { error: "US and Canada numbers have 10 digits, like 415 555 0132." };
+  }
   if (nat.length < 6 || code.length - 1 + nat.length > 15) {
     return { error: "That number doesn't look right for the country code you chose." };
   }
   return { e164: `${code}${nat}` };
 }
 
-/* ---------- time zones ---------- */
-
-function tzOffsetMinutes(date, tz) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-      .formatToParts(date)
-      .map((p) => [p.type, p.value])
-  );
-  const asUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
-  return (asUtc - date.getTime()) / 60000;
-}
-
-// The exact moment when the clock in `tz` reads y-m-d h:min.
-function zonedToUtc(y, m, d, h, min, tz) {
-  const guess = Date.UTC(y, m - 1, d, h, min);
-  const off1 = tzOffsetMinutes(new Date(guess), tz);
-  let utc = guess - off1 * 60000;
-  const off2 = tzOffsetMinutes(new Date(utc), tz);
-  if (off2 !== off1) utc = guess - off2 * 60000;
-  return new Date(utc);
-}
-
-function timeIn(date, tz) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "numeric", minute: "2-digit", hour12: true })
-    .format(date)
-    .replace(/\u202f/g, " ")
-    .toLowerCase();
-}
-
-function dayKeyIn(date, tz) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-}
-
-function fmtIn(utc, tz, opts) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts }).format(utc);
-}
-
-// Every bookable moment: 4:00 to 7:30 pm UK time on the next `count` UK weekdays.
-function buildSlotIsos(count) {
-  const out = [];
-  for (const d of upcomingUkWeekdays(count)) {
-    const [y, m, day] = d.iso.split("-").map(Number);
-    for (const [h, min] of UK_SLOTS) out.push(zonedToUtc(y, m, day, h, min, UK_TZ).toISOString());
+async function sendToFormspree(payload) {
+  const res = await fetch(FORMSPREE_ENDPOINT, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.errors?.map((x) => x.message).join(" ") || "send failed");
   }
-  return out;
 }
 
-// One slot described in the visitor's time zone, with its UK equivalent.
-function describeSlot(iso, tz) {
-  const utc = new Date(iso);
-  const localKey = dayKeyIn(utc, tz);
-  return {
-    iso,
-    localKey,
-    sameDay: localKey === dayKeyIn(utc, UK_TZ),
-    localTime: timeIn(utc, tz),
-    ukTime: timeIn(utc, UK_TZ),
-    localWeekday: fmtIn(utc, tz, { weekday: "short" }),
-    localDayNum: fmtIn(utc, tz, { day: "numeric" }),
-    localMonth: fmtIn(utc, tz, { month: "short" }),
-    localDayShort: fmtIn(utc, tz, { weekday: "short", day: "numeric", month: "short" }),
-    localDayLong: fmtIn(utc, tz, { weekday: "long", day: "numeric", month: "long" }),
-    ukDayShort: fmtIn(utc, UK_TZ, { weekday: "short", day: "numeric", month: "short" }),
-    ukDayLong: fmtIn(utc, UK_TZ, { weekday: "long", day: "numeric", month: "long" }),
-  };
-}
-
-function tzLabel(z) {
-  return z === UK_TZ ? "United Kingdom (London)" : z.replace(/_/g, " ");
-}
-
-function getTimeZones(detected) {
-  let list = [];
-  try {
-    list = Intl.supportedValuesOf("timeZone");
-  } catch {
-    list = [];
-  }
-  if (!list.length) {
-    list = ["Europe/Dublin", "Africa/Lagos", "Africa/Johannesburg", "America/New_York", "Asia/Dubai", "Asia/Kolkata", "Australia/Sydney"];
-  }
-  const set = new Set(list);
-  set.delete(UK_TZ);
-  if (detected && detected !== UK_TZ) set.add(detected);
-  return [UK_TZ, ...[...set].sort()];
-}
-
-// The next `count` weekdays, counted from tomorrow in the UK.
-function upcomingUkWeekdays(count) {
-  const [y, m, d] = dayKeyIn(new Date(), UK_TZ).split("-").map(Number);
-  const cur = new Date(Date.UTC(y, m - 1, d, 12));
-  const out = [];
-  while (out.length < count) {
-    cur.setUTCDate(cur.getUTCDate() + 1);
-    const dow = cur.getUTCDay();
-    if (dow === 0 || dow === 6) continue;
-    out.push({
-      iso: cur.toISOString().slice(0, 10),
-      weekday: cur.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }),
-      day: cur.getUTCDate(),
-      month: cur.toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" }),
-      long: cur.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }),
-    });
-  }
-  return out;
-}
-
-/* ---------- small UI pieces ---------- */
+const inputBase =
+  "w-full rounded-xl border bg-white px-4 py-3 text-base focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30";
 
 function ErrorText({ id, children }) {
   if (!children) return null;
@@ -232,708 +117,332 @@ function ErrorText({ id, children }) {
   );
 }
 
-function Pill({ selected, onClick, children }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-        selected
-          ? "border-brand bg-brand text-white"
-          : "border-line bg-white text-ink hover:border-brand"
-      }`}
-    >
-      {selected && <span aria-hidden="true">✓</span>}
-      {children}
-    </button>
-  );
-}
-
-function SlotButton({ slot, selected, showUk, onClick }) {
-  const sub = selected ? "text-white/85" : "text-slate-600";
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`flex min-h-14 flex-col items-center justify-center rounded-2xl border px-1 py-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-        selected ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:border-brand"
-      }`}
-    >
-      <span className="text-sm font-bold">{slot.localTime}</span>
-      {showUk && <span className={`text-xs ${sub}`}>{slot.ukTime} UK</span>}
-      {showUk && !slot.sameDay && <span className={`text-xs ${sub}`}>{slot.ukDayShort}</span>}
-    </button>
-  );
-}
-
-function StageCard({ stage, selected, onClick }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`flex flex-col items-start rounded-2xl border p-3.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-        selected ? "border-brand bg-brand text-white" : "border-line bg-white hover:border-brand"
-      }`}
-    >
-      <span className="text-base font-extrabold">{stage.title}</span>
-      <span className={`text-sm font-semibold ${selected ? "text-white" : "text-brand"}`}>{stage.ages}</span>
-      <span className={`mt-0.5 text-xs ${selected ? "text-white/85" : "text-slate-600"}`}>{stage.note}</span>
-    </button>
-  );
-}
-
-function YearButton({ label, ages, selected, onClick }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`flex min-h-14 flex-col items-center justify-center rounded-2xl border px-1 py-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-        selected ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:border-brand"
-      }`}
-    >
-      <span className="text-sm font-bold">{label}</span>
-      <span className={`text-xs ${selected ? "text-white/85" : "text-slate-600"}`}>{ages}</span>
-    </button>
-  );
-}
-
-const inputBase =
-  "w-full rounded-xl border bg-white px-4 py-3 text-base text-ink placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand";
-
-/* ---------- the form ---------- */
-
 export default function BookingForm() {
   const [step, setStep] = useState(1);
-  const [done, setDone] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
-  const [allSlots, setAllSlots] = useState([]);
-  const [tzList, setTzList] = useState([]);
-  const [detectedTz, setDetectedTz] = useState("");
   const [sending, setSending] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [waHref, setWaHref] = useState("");
   const cardRef = useRef(null);
   const firstRender = useRef(true);
 
-  // Dates and time zones come from the browser, so they are set after the page loads.
-  useEffect(() => {
-    setAllSlots(buildSlotIsos(12));
-    let detected = UK_TZ;
-    try {
-      detected = Intl.DateTimeFormat().resolvedOptions().timeZone || UK_TZ;
-    } catch {
-      detected = UK_TZ;
-    }
-    setTzList(getTimeZones(detected));
-    setDetectedTz(detected);
-  }, []);
-
-  // On phones, bring the card back into view when the step changes.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
       return;
     }
-    if (window.innerWidth < 1024 && cardRef.current) {
-      cardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [step, done]);
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [step]);
 
-  const set = (field, value) => {
+  function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
-    if (errors[field]) setErrors((e) => ({ ...e, [field]: undefined }));
-  };
-
-  const tz = form.timeZone || UK_TZ;
-  const isUk = tz === UK_TZ;
-  const currentStage = STAGES.find((st) => st.id === form.stage);
-  const showExamBoard = EXAM_BOARD_YEARS.includes(form.yearGroup);
-  const described = useMemo(() => allSlots.map((iso) => describeSlot(iso, tz)), [allSlots, tz]);
-  const stripDays = useMemo(() => {
-    const seen = new Set();
-    const out = [];
-    for (const sl of described) {
-      if (!seen.has(sl.localKey)) {
-        seen.add(sl.localKey);
-        out.push(sl);
-      }
-    }
-    return out.slice(0, 10);
-  }, [described]);
-  const daySlots = form.date ? described.filter((sl) => sl.localKey === form.date) : [];
-  const chosen = form.slotIso ? described.find((sl) => sl.iso === form.slotIso) : null;
-  const emailFix = suggestEmail(form.email);
-
-  function validate(forStep) {
-    const e = {};
-    if (forStep === 1) {
-      if (!form.childName.trim()) e.childName = "Enter your child's first name.";
-      if (!form.stage) e.stage = "Choose your child's stage.";
-      else if (!form.yearGroup) e.yearGroup = "Choose a year.";
-      if (form.subject.length === 0) e.subject = "Choose at least one subject.";
-    }
-    if (forStep === 2) {
-      if (!form.date) e.date = "Choose a day.";
-      if (!form.slotIso) e.time = "Choose a time.";
-    }
-    if (forStep === 3) {
-      if (!form.parentName.trim()) e.parentName = "Enter your full name.";
-      if (!form.email.trim()) e.email = "Enter your email address.";
-      else if (!emailOk(form.email)) e.email = "That email doesn't look right.";
-      const phone = parsePhone(form.countryCode, form.mobile);
-      if (phone.empty) {
-        if (form.whatsapp) e.mobile = "Add your mobile number so we can use WhatsApp.";
-      } else if (phone.error) {
-        e.mobile = phone.error;
-      }
-      if (!form.guardian) e.guardian = "You need to confirm this to book.";
-    }
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    setErrors((e) => ({ ...e, [field]: undefined }));
   }
 
-  function toggleSubject(name) {
-    setForm((f) => {
-      let next;
-      if (name === "Not sure") {
-        next = f.subject.includes("Not sure") ? [] : ["Not sure"];
-      } else {
-        const without = f.subject.filter((x) => x !== "Not sure");
-        next = without.includes(name) ? without.filter((x) => x !== name) : [...without, name];
-      }
-      return { ...f, subject: next };
-    });
-    setErrors((e) => ({ ...e, subject: undefined }));
-  }
-
-  function pickStage(id) {
-    const st = STAGES.find((x) => x.id === id);
+  function toggleSubject(subject) {
     setForm((f) => ({
       ...f,
-      stage: id,
-      yearGroup: st.years.some((n) => `Year ${n}` === f.yearGroup) ? f.yearGroup : "",
-      examBoard: f.examBoard,
+      subjects: f.subjects.includes(subject) ? f.subjects.filter((s) => s !== subject) : [...f.subjects, subject],
     }));
-    setErrors((e) => ({ ...e, stage: undefined, yearGroup: undefined }));
   }
 
-  function changeTimeZone(z) {
-    // Keep the chosen moment, but show it on its date in the new time zone.
-    setForm((f) => ({ ...f, timeZone: z, date: f.slotIso ? dayKeyIn(new Date(f.slotIso), z) : null }));
-    setErrors((e) => ({ ...e, date: undefined, time: undefined }));
-  }
-
-  function pickDay(key) {
-    setForm((f) => ({
-      ...f,
-      date: key,
-      slotIso: f.slotIso && dayKeyIn(new Date(f.slotIso), tz) === key ? f.slotIso : "",
-    }));
-    setErrors((e) => ({ ...e, date: undefined }));
-  }
-
-  function pickSlot(iso) {
-    setForm((f) => ({ ...f, slotIso: iso }));
-    setErrors((e) => ({ ...e, time: undefined }));
-  }
-
-  function next() {
-    if (validate(step)) setStep((s) => s + 1);
-  }
-
-  function back() {
-    setErrors({});
-    setServerError("");
-    setStep((s) => s - 1);
-  }
-
-  async function submit(ev) {
-    ev.preventDefault();
-    if (sending || !validate(3)) return;
-    setServerError("");
-
-    if (FORMSPREE_ENDPOINT.includes("YOUR_FORM_ID")) {
-      setServerError("The form isn't connected yet. Open app/config.js and paste your Formspree endpoint.");
-      return;
-    }
-
+  function validateStep1() {
+    const next = {};
+    if (form.parentName.trim().length < 2) next.parentName = "Please enter your full name.";
+    if (!emailOk(form.email)) next.email = "Enter a valid email address.";
     const phone = parsePhone(form.countryCode, form.mobile);
-    const payload = {
-      _subject: `Snapshot booking request: ${form.childName.trim()} (${form.yearGroup}), ${chosen?.ukDayLong}, ${chosen?.ukTime} UK time`,
-      name: form.parentName.trim(),
-      email: form.email.trim(),
-      mobile: phone.e164 || "",
-      child_first_name: form.childName.trim(),
-      year_group: form.yearGroup,
-      school_stage: currentStage?.title,
-      child_age_range: `${yearNumber(form.yearGroup) + 4} to ${yearNumber(form.yearGroup) + 5}`,
-      exam_board: form.examBoard.trim(),
-      focus_subject: form.subject.join(", "),
-      helps_most: form.helpMost,
-      requested_day_uk: chosen?.ukDayLong,
-      requested_time_uk: chosen?.ukTime,
-      requested_time_for_parent: `${chosen?.localDayShort}, ${chosen?.localTime}`,
-      parent_time_zone: tz,
-      reply_on_whatsapp: form.whatsapp ? "Yes" : "No",
-      guardian_confirmed: form.guardian ? "Yes" : "No",
-      marketing_opt_in: form.marketing ? "Yes" : "No",
-      _gotcha: form.botField,
-    };
+    if (phone.empty) next.mobile = "Enter your WhatsApp number.";
+    else if (phone.error) next.mobile = phone.error;
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  // Step 1 only checks the contact details and moves on. Nothing is sent yet.
+  function submitStep1(ev) {
+    ev.preventDefault();
+    if (!validateStep1()) return;
+    setServerError("");
+    setStep(2);
+  }
+
+  // Step 2 is optional. Everything is sent to Formspree once, here, whether the parent
+  // adds child details or skips them.
+  async function finish(skip) {
+    if (sending) return;
+    setServerError("");
+    const phone = parsePhone(form.countryCode, form.mobile);
+    const stage = STAGES.find((s) => s.id === form.stage);
+    const childName = skip ? "" : form.childName.trim();
+    const hasChild = !skip && (childName || form.stage || form.subjects.length > 0);
 
     setSending(true);
     try {
-      const res = await fetch(FORMSPREE_ENDPOINT, {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+      await sendToFormspree({
+        _subject: `New Free Assessment request: ${form.parentName.trim()}${childName ? ` (child: ${childName})` : ""}`,
+        parent_name: form.parentName.trim(),
+        email: form.email.trim(),
+        whatsapp: phone.e164 || "",
+        child_details: hasChild ? "Provided" : "Skipped",
+        child_first_name: childName,
+        school_stage: !skip && stage ? `${stage.title} (${stage.uk} | ${stage.us})` : "",
+        focus_subjects: skip ? "" : form.subjects.join(", "),
+        _gotcha: form.botField,
       });
-      if (res.ok) {
-        setDone(true);
-      } else {
-        const data = await res.json().catch(() => ({}));
-        const detail = data?.errors?.map((x) => x.message).join(" ");
-        setServerError(detail || "We couldn't send your booking. Check your connection and try again.");
-      }
     } catch {
-      setServerError("We couldn't send your booking. Check your connection and try again.");
-    } finally {
+      setServerError("We couldn't send your details. Check your connection and try again.");
       setSending(false);
+      return;
     }
-  }
+    setSending(false);
 
-  function startAgain() {
-    setForm({ ...EMPTY, timeZone: form.timeZone, countryCode: form.countryCode });
-    setErrors({});
-    setServerError("");
-    setStep(1);
-    setDone(false);
+    setWaHref(`https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(WA_MESSAGE)}`);
+    setStep(3);
   }
 
   const cardClass =
-    "rounded-3xl border border-line bg-white p-6 shadow-[0_18px_50px_-20px_rgba(1,64,170,0.35)] sm:p-8";
+    "scroll-mt-24 rounded-3xl border border-line bg-white p-6 shadow-[0_18px_50px_-20px_rgba(27,54,93,0.35)] sm:p-8";
 
-  if (done) {
-    const waText = `Hello Bestway Online Academy, I have just requested a free Learning Session for ${form.childName.trim()} (${form.yearGroup}) on ${chosen?.ukDayLong} at ${chosen?.ukTime} UK time. My name is ${form.parentName.trim()} and my child's name is ${form.childName.trim()}.`;
-    const waHref = `https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(waText)}`;
-    const rows = [
-      ["Child", `${form.childName.trim()}, ${form.yearGroup} (${yearAges(yearNumber(form.yearGroup))})`],
-      ["Subject", form.subject.join(", ")],
-      ["UK time", `${chosen?.ukDayLong}, ${chosen?.ukTime}`],
-      ...(isUk ? [] : [["Your time", `${chosen?.localDayLong}, ${chosen?.localTime} (${tzLabel(tz)})`]]),
-      ["Length", "30 minutes"],
-    ];
+  const progress = (
+    <div className="mb-5 flex gap-2" aria-hidden="true">
+      {[1, 2].map((n) => (
+        <div key={n} className={`h-1.5 flex-1 rounded-full ${n <= step ? "bg-accent" : "bg-line"}`} />
+      ))}
+    </div>
+  );
+
+  /* ---------- STEP 3: WhatsApp ---------- */
+  if (step === 3) {
     return (
-      <div id="book" ref={cardRef} className={`${cardClass} scroll-mt-24`}>
+      <div id="book" ref={cardRef} className={cardClass}>
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-2xl text-ok" aria-hidden="true">
           ✓
         </div>
-        <h2 className="text-center text-2xl font-extrabold">
-          Thanks, {form.parentName.trim().split(" ")[0]}. Your request is in.
+        <h2 className="text-center text-2xl font-extrabold text-navy">
+          Thanks, {form.parentName.trim().split(" ")[0]}. You&apos;re registered.
         </h2>
         <p className="mt-2 text-center text-slate-600">
-          We will email <strong className="text-ink">{form.email.trim()}</strong> to confirm your time.
+          Last step: message us on WhatsApp with the date and time that suits your family.
         </p>
-
-        <dl className="mt-6 divide-y divide-line rounded-2xl bg-mist px-5 text-sm">
-          {rows.map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-4 py-3">
-              <dt className="shrink-0 text-slate-600">{k}</dt>
-              <dd className="text-right font-semibold">{v}</dd>
-            </div>
-          ))}
-        </dl>
-
         <a
           href={waHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-green-700 py-3.5 text-base font-bold text-white transition-colors hover:bg-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2"
+          className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-green-700 py-3.5 text-base font-bold text-white transition-colors hover:bg-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
             <path d="M12 2C6.48 2 2 6.03 2 11c0 2.12.82 4.07 2.2 5.6L3 22l5.1-1.7c1.2.45 2.5.7 3.9.7 5.52 0 10-4.03 10-9s-4.48-9-10-9z" />
           </svg>
-          Message us on WhatsApp
+          Continue to WhatsApp
         </a>
-        <p className="mt-2 text-center text-xs text-slate-600">Opens WhatsApp with a message ready to send.</p>
-
-        <h3 className="mt-6 font-bold">How to get ready</h3>
-        <ol className="mt-3 space-y-2 text-sm text-slate-700">
-          <li>1. A quiet space and a laptop or tablet with camera and microphone.</li>
-          <li>2. Pen and paper ready.</li>
-          <li>3. An adult nearby. Join two minutes early.</li>
-        </ol>
-
-        <p className="mt-5 rounded-2xl bg-mist p-4 text-sm">
-          <strong>What happens next:</strong> after the session, we will email {form.childName.trim()}&apos;s one-page Snapshot to you.
+        <p className="mt-2 text-center text-xs text-slate-600">
+          Type your preferred date and time at the end of the message.
         </p>
+      </div>
+    );
+  }
+
+  /* ---------- STEP 2: optional child details ---------- */
+  if (step === 2) {
+    return (
+      <div id="book" ref={cardRef} className={cardClass}>
+        {progress}
+        <p className="text-sm font-semibold text-accent">Step 2 of 2 · Optional</p>
+        <h2 className="mt-1 text-2xl font-extrabold text-navy">Tell us about your child</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          This helps us match the right tutor, but you can skip it.
+        </p>
+
+        <div className="mt-5">
+          <label htmlFor="childName" className="mb-1.5 block text-sm font-semibold">Child&apos;s first name</label>
+          <input
+            id="childName"
+            type="text"
+            autoComplete="off"
+            value={form.childName}
+            onChange={(e) => set("childName", e.target.value)}
+            className={`${inputBase} border-line`}
+          />
+        </div>
+
+        <fieldset className="mt-5">
+          <legend className="mb-1.5 text-sm font-semibold">School stage</legend>
+          <div className="grid gap-2" role="radiogroup">
+            {STAGES.map((s) => {
+              const on = form.stage === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => set("stage", on ? "" : s.id)}
+                  className={`rounded-xl border px-4 py-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    on ? "border-accent bg-red-50" : "border-line bg-white hover:bg-mist"
+                  }`}
+                >
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="font-bold text-navy">{s.title}</span>
+                    <span className="shrink-0 text-xs font-semibold text-slate-600">{s.ages}</span>
+                  </span>
+                  <span className="mt-0.5 block text-sm text-slate-600">{s.uk} | {s.us}</span>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-slate-600">
+            On an international curriculum? Pick the closest age group.
+          </p>
+        </fieldset>
+
+        <fieldset className="mt-5">
+          <legend className="mb-1.5 text-sm font-semibold">Focus subjects</legend>
+          <div className="flex flex-wrap gap-2">
+            {SUBJECTS.map((s) => {
+              const on = form.subjects.includes(s);
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggleSubject(s)}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    on ? "border-accent bg-accent text-white" : "border-line bg-white hover:bg-mist"
+                  }`}
+                >
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        {serverError && (
+          <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-danger">{serverError}</p>
+        )}
 
         <button
           type="button"
-          onClick={startAgain}
-          className="mt-5 w-full rounded-full py-2 text-sm font-semibold text-brand underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          onClick={() => finish(false)}
+          disabled={sending}
+          className="mt-6 w-full rounded-full bg-accent py-3.5 text-base font-bold text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
         >
-          Book for another child
+          {sending ? "Sending..." : "Book Now"}
+        </button>
+        <button
+          type="button"
+          onClick={() => finish(true)}
+          disabled={sending}
+          className="mt-2 w-full rounded-full py-2 text-sm font-semibold text-brand underline underline-offset-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          Skip for now &amp; book via WhatsApp
         </button>
       </div>
     );
   }
 
+  /* ---------- STEP 1: parent contact ---------- */
+  const emailFix = suggestEmail(form.email);
+
   return (
-    <form id="book" ref={cardRef} onSubmit={submit} noValidate className={`${cardClass} scroll-mt-24`}>
-      <div className="mb-5 flex gap-2" aria-hidden="true">
-        {[1, 2, 3].map((n) => (
-          <div key={n} className={`h-1.5 flex-1 rounded-full ${n <= step ? "bg-brand" : "bg-line"}`} />
-        ))}
+    <form id="book" ref={cardRef} onSubmit={submitStep1} noValidate className={`${cardClass} relative`}>
+      {progress}
+      <p className="text-sm font-semibold text-accent">Step 1 of 2</p>
+      <h2 className="mt-1 text-2xl font-extrabold text-navy">Book Your Free Assessment</h2>
+      <p className="mt-1 text-sm text-slate-600">Just your contact details. We&apos;ll arrange the time on WhatsApp.</p>
+
+      {/* Spam trap: real people never see or fill this in. */}
+      <input
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+        value={form.botField}
+        onChange={(e) => set("botField", e.target.value)}
+        className="absolute -left-[9999px] h-0 w-0 opacity-0"
+      />
+
+      <div className="mt-5">
+        <label htmlFor="parentName" className="mb-1.5 block text-sm font-semibold">Parent full name</label>
+        <input
+          id="parentName"
+          type="text"
+          autoComplete="name"
+          value={form.parentName}
+          onChange={(e) => set("parentName", e.target.value)}
+          aria-invalid={!!errors.parentName}
+          aria-describedby={errors.parentName ? "parentName-err" : undefined}
+          className={`${inputBase} ${errors.parentName ? "border-danger" : "border-line"}`}
+        />
+        <ErrorText id="parentName-err">{errors.parentName}</ErrorText>
       </div>
-      <p className="text-sm font-semibold text-brand">Step {step} of 3</p>
 
-      {/* STEP 1 */}
-      {step === 1 && (
-        <div>
-          <h2 className="mt-1 text-2xl font-extrabold">Tell us about your child</h2>
-          <p className="mt-1 text-sm text-slate-600">We use this to prepare your tutor. First name only, please.</p>
-
-          <div className="mt-5">
-            <label htmlFor="childName" className="mb-1.5 block text-sm font-semibold">Child&apos;s first name</label>
-            <div className="relative">
-              <input
-                id="childName"
-                type="text"
-                autoComplete="off"
-                value={form.childName}
-                onChange={(e) => set("childName", e.target.value)}
-                aria-invalid={!!errors.childName}
-                aria-describedby={errors.childName ? "childName-err" : undefined}
-                className={`${inputBase} pr-10 ${errors.childName ? "border-danger" : form.childName.trim() ? "border-ok" : "border-line"}`}
-              />
-              {form.childName.trim() && !errors.childName && (
-                <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-ok" aria-hidden="true">✓</span>
-              )}
-            </div>
-            <ErrorText id="childName-err">{errors.childName}</ErrorText>
-          </div>
-
-          <fieldset className="mt-4">
-            <legend className="mb-2 text-sm font-semibold">Which stage is your child at?</legend>
-            <div className="grid grid-cols-2 gap-2">
-              {STAGES.map((st) => (
-                <StageCard key={st.id} stage={st} selected={form.stage === st.id} onClick={() => pickStage(st.id)} />
-              ))}
-            </div>
-            <ErrorText>{errors.stage}</ErrorText>
-          </fieldset>
-
-          {currentStage && (
-            <fieldset className="mt-4">
-              <legend className="mb-2 text-sm font-semibold">Which year?</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {currentStage.years.map((n) => (
-                  <YearButton
-                    key={n}
-                    label={`Year ${n}`}
-                    ages={yearAges(n)}
-                    selected={form.yearGroup === `Year ${n}`}
-                    onClick={() => set("yearGroup", `Year ${n}`)}
-                  />
-                ))}
-              </div>
-              <ErrorText>{errors.yearGroup}</ErrorText>
-            </fieldset>
-          )}
-
-          <details className="mt-3 text-sm text-slate-700">
-            <summary className="cursor-pointer font-semibold text-brand">Not sure which year? Use your child&apos;s age</summary>
-            <p className="mt-2">
-              Count your child&apos;s age on 31 August before the school year starts. Age 5 is Year 1, age 6 is Year 2, and so on up to age 17 for Year 13.
-            </p>
-            <p className="mt-1">In the US, the UK year is one higher than the grade. Grade 5 is about Year 6.</p>
-          </details>
-
-          {showExamBoard && (
-            <div className="mt-4">
-              <label htmlFor="examBoard" className="mb-1.5 block text-sm font-semibold">
-                Exam board <span className="font-normal text-slate-500">(optional)</span>
-              </label>
-              <input
-                id="examBoard"
-                type="text"
-                placeholder="AQA, Edexcel, OCR..."
-                value={form.examBoard}
-                onChange={(e) => set("examBoard", e.target.value)}
-                className={`${inputBase} border-line`}
-              />
-            </div>
-          )}
-
-          <fieldset className="mt-4">
-            <legend className="mb-2 text-sm font-semibold">
-              Focus subjects for the 30 minutes <span className="font-normal text-slate-500">(pick one or more)</span>
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {SUBJECTS.map((s) => (
-                <Pill key={s} selected={form.subject.includes(s)} onClick={() => toggleSubject(s)}>{s}</Pill>
-              ))}
-            </div>
-            <ErrorText>{errors.subject}</ErrorText>
-          </fieldset>
-
-          <fieldset className="mt-4">
-            <legend className="mb-2 text-sm font-semibold">
-              What would help most? <span className="font-normal text-slate-500">(optional)</span>
-            </legend>
-            <div className="flex flex-wrap gap-2">
-              {HELP.map((h) => (
-                <Pill key={h} selected={form.helpMost === h} onClick={() => set("helpMost", form.helpMost === h ? "" : h)}>{h}</Pill>
-              ))}
-            </div>
-          </fieldset>
-
-          <button type="button" onClick={next} className="mt-6 w-full rounded-full bg-brand py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
-            Continue
-          </button>
-        </div>
-      )}
-
-      {/* STEP 2 */}
-      {step === 2 && (
-        <div>
-          <h2 className="mt-1 text-2xl font-extrabold">Pick a time that suits you</h2>
-          <p className="mt-1 text-sm text-slate-600">
-            {isUk
-              ? "All times are UK time."
-              : "Dates and times are shown in your time zone. Sessions run from 4:00 to 7:30 pm UK time."}
+      <div className="mt-4">
+        <label htmlFor="email" className="mb-1.5 block text-sm font-semibold">Email address</label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          value={form.email}
+          onChange={(e) => set("email", e.target.value)}
+          aria-invalid={!!errors.email}
+          aria-describedby={errors.email || emailFix ? "email-err" : undefined}
+          className={`${inputBase} ${errors.email ? "border-danger" : "border-line"}`}
+        />
+        {(errors.email || emailFix) && (
+          <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-danger">
+            {errors.email || "Check this email address."}
+            {emailFix && (
+              <>
+                {" "}Did you mean{" "}
+                <button type="button" onClick={() => set("email", emailFix)} className="underline underline-offset-2">
+                  {emailFix}
+                </button>
+                ?
+              </>
+            )}
           </p>
+        )}
+      </div>
 
-          <div className="mt-4">
-            <label htmlFor="timeZone" className="mb-1.5 block text-sm font-semibold">Your time zone</label>
-            {tzList.length ? (
-              <select
-                id="timeZone"
-                value={form.timeZone}
-                onChange={(e) => changeTimeZone(e.target.value)}
-                className={`${inputBase} border-line`}
-              >
-                {tzList.map((z) => (
-                  <option key={z} value={z}>{tzLabel(z)}</option>
-                ))}
-              </select>
-            ) : (
-              <div className="h-[50px] rounded-xl bg-mist" />
-            )}
-            {/* {detectedTz && detectedTz !== UK_TZ && form.timeZone === UK_TZ && (
-              <button
-                type="button"
-                onClick={() => changeTimeZone(detectedTz)}
-                className="mt-2 text-sm font-semibold text-brand underline underline-offset-4"
-              >
-                Use my time zone ({tzLabel(detectedTz)})
-              </button>
-            )} */}
-          </div>
-
-          <fieldset className="mt-5">
-            <legend className="mb-2 text-sm font-semibold">Day</legend>
-            {stripDays.length === 0 ? (
-              <div className="h-[132px] rounded-2xl bg-mist" />
-            ) : (
-              <div className="grid grid-cols-5 gap-2">
-                {stripDays.map((d) => {
-                  const on = form.date === d.localKey;
-                  return (
-                    <button
-                      key={d.localKey}
-                      type="button"
-                      aria-pressed={on}
-                      onClick={() => pickDay(d.localKey)}
-                      className={`flex flex-col items-center rounded-2xl border py-2.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 ${
-                        on ? "border-brand bg-brand text-white" : "border-line bg-white hover:border-brand"
-                      }`}
-                    >
-                      <span className="text-xs font-medium">{d.localWeekday}</span>
-                      <span className="text-lg font-extrabold leading-tight">{d.localDayNum}</span>
-                      <span className="text-xs">{d.localMonth}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <ErrorText>{errors.date}</ErrorText>
-          </fieldset>
-
-          <fieldset className="mt-5">
-            <legend className="mb-2 text-sm font-semibold">Time</legend>
-            {form.date ? (
-              <div className="grid grid-cols-3 gap-2">
-                {daySlots.map((sl) => (
-                  <SlotButton key={sl.iso} slot={sl} showUk={!isUk} selected={form.slotIso === sl.iso} onClick={() => pickSlot(sl.iso)} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-slate-600">Choose a day to see the times.</p>
-            )}
-            <ErrorText>{errors.time}</ErrorText>
-          </fieldset>
-
-          <a
-            href={`mailto:${CONTACT_EMAIL}?subject=Learning%20Snapshot%20time%20request`}
-            className="mt-4 inline-block text-sm font-semibold text-brand underline underline-offset-4"
+      <div className="mt-4">
+        <label htmlFor="mobile" className="mb-1.5 block text-sm font-semibold">WhatsApp mobile number</label>
+        <div className="flex flex-col gap-2">
+          <select
+            aria-label="Country code"
+            value={form.countryCode}
+            onChange={(e) => set("countryCode", e.target.value)}
+            className={`${inputBase} ${errors.mobile ? "border-danger" : "border-line"}`}
           >
-            None of these times work? Email us
-          </a>
-
-          <button type="button" onClick={next} className="mt-5 w-full rounded-full bg-brand py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
-            Continue
-          </button>
-          <button type="button" onClick={back} className="mt-2 w-full rounded-full py-2 text-sm font-semibold text-slate-600 underline underline-offset-4">
-            Back
-          </button>
-        </div>
-      )}
-
-      {/* STEP 3 */}
-      {step === 3 && (
-        <div>
-          <h2 className="mt-1 text-2xl font-extrabold">Last step: your details</h2>
-          <p className="mt-1 text-sm text-slate-600">We will send your booking and reminders here.</p>
-
-          {/* Spam trap: real people never see or fill this in. */}
+            {COUNTRY_CODES.map(([name, code]) => (
+              <option key={name} value={code}>{name} ({code})</option>
+            ))}
+            <option value="">Other country (type the number starting with +)</option>
+          </select>
           <input
-            type="text"
-            tabIndex={-1}
-            autoComplete="off"
-            aria-hidden="true"
-            value={form.botField}
-            onChange={(e) => set("botField", e.target.value)}
-            className="absolute -left-[9999px] h-0 w-0 opacity-0"
+            id="mobile"
+            type="tel"
+            autoComplete="tel-national"
+            inputMode="tel"
+            placeholder={form.countryCode === "+44" ? "7XXX XXXXXX" : form.countryCode ? "Phone number" : "+ and full number"}
+            value={form.mobile}
+            onChange={(e) => set("mobile", e.target.value)}
+            aria-invalid={!!errors.mobile}
+            aria-describedby={errors.mobile ? "mobile-err" : undefined}
+            className={`${inputBase} ${errors.mobile ? "border-danger" : "border-line"}`}
           />
-
-          <div className="mt-5">
-            <label htmlFor="parentName" className="mb-1.5 block text-sm font-semibold">Your full name</label>
-            <input
-              id="parentName"
-              type="text"
-              autoComplete="name"
-              placeholder="Parent or guardian name"
-              value={form.parentName}
-              onChange={(e) => set("parentName", e.target.value)}
-              aria-invalid={!!errors.parentName}
-              aria-describedby={errors.parentName ? "parentName-err" : undefined}
-              className={`${inputBase} ${errors.parentName ? "border-danger" : "border-line"}`}
-            />
-            <ErrorText id="parentName-err">{errors.parentName}</ErrorText>
-          </div>
-
-          <div className="mt-4">
-            <label htmlFor="email" className="mb-1.5 block text-sm font-semibold">Email address</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              inputMode="email"
-              value={form.email}
-              onChange={(e) => set("email", e.target.value)}
-              aria-invalid={!!errors.email}
-              aria-describedby={errors.email ? "email-err" : undefined}
-              className={`${inputBase} ${errors.email ? "border-danger" : "border-line"}`}
-            />
-            {(errors.email || emailFix) && (
-              <p id="email-err" role="alert" className="mt-1.5 text-sm font-medium text-danger">
-                {errors.email || "Check this email address."}
-                {emailFix && (
-                  <>
-                    {" "}Did you mean{" "}
-                    <button type="button" onClick={() => set("email", emailFix)} className="underline underline-offset-2">
-                      {emailFix}
-                    </button>
-                    ?
-                  </>
-                )}
-              </p>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <label htmlFor="mobile" className="mb-1.5 block text-sm font-semibold">
-              Mobile number <span className="font-normal text-slate-500">(only needed for WhatsApp)</span>
-            </label>
-            <div className="flex flex-col gap-2">
-              <select
-                aria-label="Country code"
-                value={form.countryCode}
-                onChange={(e) => set("countryCode", e.target.value)}
-                className={`${inputBase} ${errors.mobile ? "border-danger" : "border-line"}`}
-              >
-                {COUNTRY_CODES.map(([name, code]) => (
-                  <option key={name} value={code}>{name} ({code})</option>
-                ))}
-                <option value="">Other country (type the number starting with +)</option>
-              </select>
-              <input
-                id="mobile"
-                type="tel"
-                autoComplete="tel-national"
-                inputMode="tel"
-                placeholder={form.countryCode === "+44" ? "7XXX XXXXXX" : form.countryCode ? "Phone number" : "+ and full number"}
-                value={form.mobile}
-                onChange={(e) => set("mobile", e.target.value)}
-                aria-invalid={!!errors.mobile}
-                aria-describedby={errors.mobile ? "mobile-err" : "mobile-help"}
-                className={`${inputBase} ${errors.mobile ? "border-danger" : "border-line"}`}
-              />
-            </div>
-            {errors.mobile ? (
-              <ErrorText id="mobile-err">{errors.mobile}</ErrorText>
-            ) : (
-              <p id="mobile-help" className="mt-1.5 text-sm text-slate-600">
-                Any country works. Pick your code, or type the full number starting with +.
-              </p>
-            )}
-          </div>
-
-          <div className="mt-5 space-y-3 text-sm text-slate-700">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input type="checkbox" checked={form.whatsapp} onChange={(e) => set("whatsapp", e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-brand" />
-              <span>Yes, send my booking and reminders on WhatsApp.</span>
-            </label>
-
-            <div>
-              <label className="flex cursor-pointer items-start gap-3">
-                <input type="checkbox" checked={form.guardian} onChange={(e) => set("guardian", e.target.checked)} aria-invalid={!!errors.guardian} className="mt-0.5 h-5 w-5 shrink-0 accent-brand" />
-                <span>
-                  I am this child&apos;s parent or legal guardian and agree to my child taking part in a free 30-minute live online session. An adult will be nearby throughout. <span className="text-danger" aria-label="required">*</span>
-                </span>
-              </label>
-              <ErrorText>{errors.guardian}</ErrorText>
-            </div>
-
-            <label className="flex cursor-pointer items-start gap-3">
-              <input type="checkbox" checked={form.marketing} onChange={(e) => set("marketing", e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-brand" />
-              <span>Send me occasional study tips and news. I can unsubscribe at any time.</span>
-            </label>
-          </div>
-
-          {serverError && (
-            <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-medium text-danger">{serverError}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={sending}
-            className="mt-5 w-full rounded-full bg-brand py-3.5 text-base font-bold text-white transition-colors hover:bg-brand-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
-          >
-            {sending ? "Booking..." : "Book my free Snapshot"}
-          </button>
-          <button type="button" onClick={back} disabled={sending} className="mt-2 w-full rounded-full py-2 text-sm font-semibold text-slate-600 underline underline-offset-4">
-            Back
-          </button>
         </div>
-      )}
+        <ErrorText id="mobile-err">{errors.mobile}</ErrorText>
+      </div>
 
-      <p className="mt-3 text-center text-sm text-slate-600">Free. No card needed. No obligation to enrol.</p>
+      <button
+        type="submit"
+        className="mt-5 w-full rounded-full bg-accent py-3.5 text-base font-bold text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+      >
+        Continue
+      </button>
+      <p className="mt-3 text-center text-xs text-slate-600">
+        Free. No card needed. By continuing you confirm you are the child&apos;s parent or guardian.
+      </p>
     </form>
   );
 }

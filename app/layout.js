@@ -3,7 +3,7 @@ import "./globals.css";
 export const metadata = {
   title: "Bestway Online Academy",
   description:
-    "A free 30-minute live session with a tutor, then a one-page Snapshot showing where your child stands. UK curriculum, Years 1 to 13.",
+    "A free live assessment with an expert tutor, so you know exactly where your child stands. UK, US, Canada and international school systems.",
 };
 
 export default function RootLayout({ children }) {
