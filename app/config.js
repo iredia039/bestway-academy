@@ -19,25 +19,25 @@ export const TEAM = [
   {
     name: "Tohru Honda",
     role: "Founder & Lead Tutor",
-    bio: "Placeholder bio. Add a short introduction: experience, subjects taught and why they started Bestway.",
+    // bio: "Placeholder bio. Add a short introduction: experience, subjects taught and why they started Bestway.",
     photo: null,
   },
   {
     name: "Shouko Nishimiya",
     role: "English Tutor",
-    bio: "Placeholder bio. Add qualifications, curriculum experience (UK, US, Canada, International) and teaching style.",
+    // bio: "Placeholder bio. Add qualifications, curriculum experience (UK, US, Canada, International) and teaching style.",
     photo: null,
   },
   {
     name: "Taiga Aisaka",
     role: "Maths & Science Tutor",
-    bio: "Placeholder bio. Add qualifications, curriculum experience and what students say about their sessions.",
+    // bio: "Placeholder bio. Add qualifications, curriculum experience and what students say about their sessions.",
     photo: null,
   },
   {
     name: "Kaori Miyazono",
     role: "Primary & Elementary Tutor",
-    bio: "Placeholder bio. Add experience with younger learners and how they keep sessions friendly and fun.",
+    // bio: "Placeholder bio. Add experience with younger learners and how they keep sessions friendly and fun.",
     photo: null,
   },
 ];
