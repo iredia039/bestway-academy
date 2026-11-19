@@ -1,4 +1,6 @@
+import Script from "next/script";
 import "./globals.css";
+import { ANALYTICS_WEBSITE_ID } from "./analytics";
 
 export const metadata = {
   title: "Bestway Online Academy",
@@ -17,7 +19,15 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body className="bg-white font-sans text-ink antialiased">{children}</body>
+      <body className="bg-white font-sans text-ink antialiased">{children}
+        {ANALYTICS_WEBSITE_ID && (
+          <Script
+            src="https://cloud.umami.is/script.js"
+            data-website-id={ANALYTICS_WEBSITE_ID}
+            strategy="afterInteractive"
+          />
+        )}
+      </body>
     </html>
   );
 }

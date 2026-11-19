@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { FORMSPREE_ENDPOINT, OWNER_WHATSAPP } from "../config";
+import { track } from "../analytics";
 
 // Cross-system school stages (UK, US, Canada and international equivalents).
 const STAGES = [
@@ -126,6 +127,7 @@ export default function BookingForm() {
   const [waHref, setWaHref] = useState("");
   const cardRef = useRef(null);
   const firstRender = useRef(true);
+  const startedRef = useRef(false);
 
   useEffect(() => {
     if (firstRender.current) {
@@ -134,6 +136,12 @@ export default function BookingForm() {
     }
     cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [step]);
+
+  function onFormFocus() {
+    if (startedRef.current) return;
+    startedRef.current = true;
+    track("form_started");
+  }
 
   function set(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -163,6 +171,7 @@ export default function BookingForm() {
     ev.preventDefault();
     if (!validateStep1()) return;
     setServerError("");
+    track("step1_completed");
     setStep(2);
   }
 
@@ -195,6 +204,7 @@ export default function BookingForm() {
       return;
     }
     setSending(false);
+    track(skip ? "booked_skipped_child_details" : "booked", { child_details: hasChild ? "yes" : "no" });
 
     setWaHref(`https://wa.me/${OWNER_WHATSAPP}?text=${encodeURIComponent(WA_MESSAGE)}`);
     setStep(3);
@@ -226,6 +236,7 @@ export default function BookingForm() {
         </p>
         <a
           href={waHref}
+          onClick={() => track("whatsapp_clicked")}
           className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-green-700 py-3.5 text-base font-bold text-white transition-colors hover:bg-green-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-green-700 focus-visible:ring-offset-2"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
@@ -343,7 +354,7 @@ export default function BookingForm() {
   const emailFix = suggestEmail(form.email);
 
   return (
-    <form id="book" ref={cardRef} onSubmit={submitStep1} noValidate className={`${cardClass} relative`}>
+    <form id="book" ref={cardRef} onSubmit={submitStep1} onFocus={onFormFocus} noValidate className={`${cardClass} relative`}>
       {progress}
       <p className="text-sm font-semibold text-accent">Step 1 of 2</p>
       <h2 className="mt-1 text-2xl font-extrabold text-navy">Book Your Free Assessment</h2>

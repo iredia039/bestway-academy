@@ -1,5 +1,6 @@
 import BookingForm from "./components/BookingForm";
 import TeamCarousel from "./components/TeamCarousel";
+import StickyCta from "./components/StickyCta";
 import { CONTACT_EMAIL, OWNER_WHATSAPP, SOCIALS } from "./config";
 
 function Logo() {
@@ -16,7 +17,7 @@ function Logo() {
 
 function Nav() {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-white/40 bg-white/50 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Logo />
         <nav className="hidden items-center gap-8 text-sm font-semibold md:flex" aria-label="Page sections">
@@ -25,6 +26,7 @@ function Nav() {
         </nav>
         <a
           href="#book"
+          data-umami-event="nav_cta_click"
           className="rounded-full bg-accent px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
         >
           Book free
@@ -53,10 +55,14 @@ function Hero() {
           </p>
           <a
             href="#book"
+            data-umami-event="hero_cta_click"
             className="mt-7 inline-block rounded-full bg-accent px-7 py-3.5 text-base font-bold text-white shadow-sm transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-mist"
           >
             Book Your Free Assessment
           </a>
+          <p className="mt-3 max-w-md text-sm font-semibold text-slate-700">
+            A free 30-minute live session with an expert tutor. You&apos;ll leave knowing exactly where your child stands and what to do next.
+          </p>
           <ul className="mt-6 space-y-2 font-semibold">
             {badges.map((b) => (
               <li key={b} className="flex items-start gap-3">
@@ -67,6 +73,7 @@ function Hero() {
           </ul>
           <a
             href={`https://wa.me/${OWNER_WHATSAPP}`}
+            data-umami-event="hero_whatsapp_click"
             className="mt-6 inline-block text-sm underline decoration-1 underline-offset-4"
           >
             Want to find out more? Tap this link to reach us on WhatsApp
@@ -86,6 +93,7 @@ function FinalCta() {
         <h2 className="max-w-xl text-3xl font-extrabold tracking-tight text-white">Ready to see where your child stands?</h2>
         <a
           href="#book"
+          data-umami-event="final_cta_click"
           className="rounded-full bg-accent px-7 py-3.5 text-base font-bold text-white transition-colors hover:bg-accent-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-navy"
         >
           Book Your Free Assessment
@@ -99,11 +107,11 @@ function Footer() {
   const socials = SOCIALS.filter((s) => s.url);
   return (
     <footer id="contact" className="border-t border-line bg-white">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-5 py-10 text-center text-sm text-slate-600">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 px-5 pt-10 pb-28 text-center text-sm text-slate-600 md:pb-10">
         <img src="/logo.png" alt="Bestway Online Academy: Learn, Grow, Achieve" width={900} height={746} className="h-28 w-auto" />
         <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2 font-semibold text-navy" aria-label="Contact and social links">
           <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-accent">{CONTACT_EMAIL}</a>
-          <a href={`https://wa.me/${OWNER_WHATSAPP}`} className="hover:text-accent">WhatsApp</a>
+          <a href={`https://wa.me/${OWNER_WHATSAPP}`} data-umami-event="footer_whatsapp_click" className="hover:text-accent">WhatsApp</a>
           {socials.map((s) => (
             <a key={s.name} href={s.url} target="_blank" rel="noopener noreferrer" className="hover:text-accent">
               {s.name}{s.handle ? ` ${s.handle}` : ""}
@@ -126,6 +134,7 @@ export default function Home() {
         <FinalCta />
       </main>
       <Footer />
+      <StickyCta />
     </>
   );
 }
